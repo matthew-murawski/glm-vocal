@@ -30,7 +30,12 @@ end
 L2op = @(w) l2PenaltyOp(w, D, Dt, lambda);
 objFun = @(w) neglogli_poiss(w, X, y, L2op);
 
-if exist('fminunc', 'file') == 2
+useFminunc = true;
+if isstruct(optCfg) && isfield(optCfg, 'use_fminunc') && ~optCfg.use_fminunc
+    useFminunc = false;
+end
+
+if useFminunc && exist('fminunc', 'file') == 2
     options = buildFminuncOptions(optCfg);
     problem = struct();
     problem.objective = @(w) objectiveWrapper(objFun, w);
@@ -45,7 +50,7 @@ else
     [bestW, fval, exitflag, output] = fminsearchFallback(objFun, w0, options);
 end
 
-if exitflag <= 0 && isfield(output, 'message')
+if exitflag <= 0 && isfield(output, 'message') && useFminunc
     warning('fit_glm_map:NoConvergence', 'optimizer did not converge: %s', output.message);
 end
 
