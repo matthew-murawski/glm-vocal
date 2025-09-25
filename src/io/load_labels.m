@@ -1,11 +1,15 @@
-function events = load_labels(path)
-%LOAD_LABELS Load labelled events from a MAT file.
-%   events = LOAD_LABELS(path) expects a MAT file containing a struct array
-%   with fields: kind, onset, offset, label. The output is a struct array
-%   with fields kind (char vector), t_on (double), t_off (double), and
-%   label (string) after validation and normalization.
+function events = load_labels(path, defaultKind)
+% load_labels load labelled events from mat or audacity txt files.
+%
+% events = load_labels(path) reads either a mat struct array (fields kind,
+% onset, offset, label) or an audacity txt file formatted as
+% "start\tstop\toptional_label". the output struct array normalizes fields
+% to kind (char), t_on (double), t_off (double), and label (string). when
+% parsing txt files, an optional default kind can be supplied to override
+% missing or non-produced/perceived labels.
 
-% check input value and resolve to a usable path
+%% validate inputs
+% we guard against missing paths and resolve supported string types.
 if nargin < 1
     error('glm:InvalidInput', 'Path to labels file is required.');
 end
@@ -14,17 +18,102 @@ if exist(path, 'file') ~= 2
     error('glm:FileNotFound', 'Label file not found: %s', path);
 end
 
-% enforce mat-only inputs before loading the file contents
-[~, ~, ext] = fileparts(lower(path));
-if ~strcmp(ext, '.mat')
-    error('glm:UnsupportedLabelFormat', 'Labels must be provided as a MAT file containing a struct array.');
+%% sanitize optional default kind
+% when provided, default kinds must be either produced or perceived.
+if nargin < 2 || strlength(string(defaultKind)) == 0
+    defaultKind = '';
+else
+    defaultKind = char(sanitize_kind(defaultKind));
 end
 
-% decode the events and fall back to an empty array when nothing is stored
-events = load_from_mat(path);
+%% dispatch based on file extension
+% we currently support mat structs and audacity txt label exports.
+[~, ~, ext] = fileparts(lower(path));
+switch ext
+    case '.mat'
+        events = load_from_mat(path);
+    case '.txt'
+        events = load_from_txt(path, defaultKind);
+    otherwise
+        error('glm:UnsupportedLabelFormat', 'Labels must be provided as a MAT struct or an Audacity TXT file.');
+end
+
+%% normalize empty outputs to zero-length struct arrays
+% downstream code expects an empty but typed struct when no events exist.
 if isempty(events)
     events = repmat(empty_event_record(), 0, 1);
 end
+end
+
+function events = load_from_txt(path, defaultKind)
+% parse an audacity-style txt file into normalized event records.
+fid = fopen(path, 'r');
+if fid < 0
+    error('glm:FileIO', 'Unable to open label file: %s', path);
+end
+cleaner = onCleanup(@() fclose(fid));
+
+records = repmat(empty_event_record(), 0, 1);
+lineIdx = 0;
+while true
+    rawLine = fgetl(fid);
+    if ~ischar(rawLine)
+        break
+    end
+    lineIdx = lineIdx + 1;
+    line = strtrim(rawLine);
+    if isempty(line) || startsWith(line, '#')
+        continue
+    end
+
+    parts = strsplit(line, '\t');
+    if numel(parts) < 2
+        error('glm:InvalidLabelsStruct', 'TXT labels must contain onset and offset columns (line %d).', lineIdx);
+    end
+
+    tOnRaw = str2double(parts{1});
+    tOffRaw = str2double(parts{2});
+    if isnan(tOnRaw) || isnan(tOffRaw)
+        error('glm:InvalidLabelTimes', 'TXT labels must use numeric onset/offset values (line %d).', lineIdx);
+    end
+    [tOn, tOff] = sanitize_times(tOnRaw, tOffRaw);
+
+    if numel(parts) >= 3
+        labelRaw = strtrim(strjoin(parts(3:end), '\t'));
+    else
+        labelRaw = '';
+    end
+    labelString = string(labelRaw);
+    if strlength(labelString) == 0
+        labelString = "";
+    else
+        labelString = labelString(1);
+    end
+
+    kindCandidate = '';
+    if strlength(labelString) > 0
+        try
+            kindCandidate = sanitize_kind(labelString);
+        catch %#ok<CTCH>
+            kindCandidate = '';
+        end
+    end
+    if isempty(kindCandidate)
+        if isempty(defaultKind)
+            error('glm:InvalidLabelKind', 'TXT labels require produced/perceived labels or a default kind (line %d).', lineIdx);
+        end
+        kindCandidate = defaultKind;
+    end
+
+    rec = empty_event_record();
+    rec.kind = kindCandidate;
+    rec.t_on = tOn;
+    rec.t_off = tOff;
+    rec.label = labelString;
+    records(end+1, 1) = rec; %#ok<AGROW>
+end
+
+events = records;
 end
 
 function events = load_from_mat(path)
@@ -142,6 +231,9 @@ end
 function pathOut = ensure_char_path(pathIn)
 % coerce supported string types into a char vector
 if isstring(pathIn)
+    if numel(pathIn) ~= 1
+        error('glm:InvalidInput', 'Path must be a single string scalar.');
+    end
     pathOut = char(pathIn);
 elseif ischar(pathIn)
     pathOut = pathIn;
