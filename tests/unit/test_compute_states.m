@@ -63,7 +63,7 @@ ev = [ ...
 %% compute states and confirm the conversation spans the expected bins
 states = compute_states(ev, stim, makeStateCfg());
 expectedConvo = false(16, 1);
-expectedConvo(3:15) = true; % conversation from 2s through 15s (5s post reply)
+expectedConvo(3:10) = true; % conversation from 2s through 10s (closes with the last produced call when no heard reply follows)
 verifyEqual(testCase, states.convo, expectedConvo);
 verifyEqual(testCase, states.spon, ~expectedConvo);
 end
@@ -79,16 +79,16 @@ ev = [ ...
     makeEvent('perceived', 6.0, 6.3) ...
 ];
 
-%% compute states and verify the window closes five seconds after the last heard start
+%% compute states and verify the window stops at the produced offset because no reply arrives
 states = compute_states(ev, stim, makeStateCfg());
 expectedConvo = false(18, 1);
-expectedConvo(2:11) = true; % from 1s through 11s (5s after last heard start)
+expectedConvo(2:4) = true; % from 1s through 4s (conversation stops at the produced offset without a reply)
 verifyEqual(testCase, states.convo, expectedConvo);
 verifyEqual(testCase, states.spon, ~expectedConvo);
 end
 
 function testConversationEndsWithoutNextHeard(testCase)
-% lack of a follow-up heard call terminates the conversation after 5s.
+% lack of a follow-up heard call terminates the conversation at the produced offset.
 
 %% create a single heard→produced exchange with no subsequent heard reply
 stim = makeStim(1.0, 14);
@@ -97,10 +97,35 @@ ev = [ ...
     makeEvent('produced', 2.0, 2.3) ...
 ];
 
-%% compute states and ensure the conversation extends 5s past the last produced call
+%% compute states and ensure the conversation stops at the produced offset when no heard reply follows
 states = compute_states(ev, stim, makeStateCfg());
 expectedConvo = false(14, 1);
-expectedConvo(1:8) = true; % from 0.5s through 7.5s (5s post produced)
+expectedConvo(1:3) = true; % from 0.5s through 2.5s (conversation stops at the produced offset without a heard reply)
 verifyEqual(testCase, states.convo, expectedConvo);
 verifyEqual(testCase, states.spon, ~expectedConvo);
 end
+
+function testConversationStartBackChain(testCase)
+% ensures backward chaining pulls the conversation start to the earliest linked heard onset.
+
+%% create a cluster of heard calls with sub-0.5 s gaps leading into a produced response
+stim = makeStim(0.1, 120);
+ev = [ ...
+    makeEvent('perceived', 3.3, 3.45); ...
+    makeEvent('perceived', 3.9, 4.0); ...
+    makeEvent('perceived', 4.35, 4.45); ...
+    makeEvent('perceived', 4.75, 4.85); ...
+    makeEvent('produced', 5.1, 5.3) ...
+];
+
+%% compute states and confirm the earliest conversational bin reflects the chained heard onset
+states = compute_states(ev, stim, makeStateCfg());
+firstConvIdx = find(states.convo, 1, 'first');
+verifyNotEmpty(testCase, firstConvIdx);
+expectedStart = 3.9;
+verifyEqual(testCase, stim.t(firstConvIdx), expectedStart, 'AbsTol', 1e-9);
+if firstConvIdx > 1
+    verifyTrue(testCase, all(~states.convo(1:firstConvIdx-1)));
+end
+end
+

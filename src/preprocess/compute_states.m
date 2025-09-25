@@ -5,9 +5,10 @@ function states = compute_states(ev, stim, stateCfg)
 %   1) build produced (target) sequences by merging produced calls with gaps
 %      <= max_seq_gap_s (default 3.0 s).
 %   2) for each produced sequence with onset P_on:
-%        - look back 5.0 s: if there is at least one heard onset in
-%          [P_on - response_window_s, P_on], start the conversational window
-%          at the earliest such heard onset H0_on.
+%        - look back respWin (e.g., 5 s). if heard onsets exist, take the
+%          latest within that window and walk backward through heard onsets
+%          that fall within backChainWin (0.5 s) hops; the earliest link in
+%          that chain marks the conversational window start.
 %        - let P_off be this produced sequence's offset. look forward 5.0 s:
 %          if there is NO heard onset in (P_off, P_off + response_window_s],
 %          end the window at P_off and stop for this seed.
@@ -58,6 +59,7 @@ if isfield(stateCfg, 'max_seq_gap_s')
 else
     maxGap = 3.0;
 end
+backChainWin = 0.5;  % backward heard-chain hop in seconds
 tol = 1e-9;  % small time tolerance for boundary comparisons
 
 %% extract and sort events
@@ -85,12 +87,25 @@ for p = 1:numel(P_on)
     Pon  = P_on(p);
     Poff = P_off(p);
 
-    % step 1: look back respWin for heard onset(s). pick earliest within window.
+    % step 1: look back respWin for heard onset(s) and chain backward with 0.5 s hops.
     hBackIdx = find(H_on >= (Pon - respWin - tol) & H_on <= (Pon + tol));
     if isempty(hBackIdx)
         continue
     end
-    H0_on = min(H_on(hBackIdx));
+
+    latestIdx = hBackIdx(end);
+    chainIdx  = latestIdx;
+    H0_on     = H_on(chainIdx);
+
+    while true
+        prevMask = H_on < (H_on(chainIdx) - tol) & ...
+            H_on >= (H_on(chainIdx) - backChainWin - tol);
+        if ~any(prevMask)
+            break
+        end
+        chainIdx = find(prevMask, 1, 'last');
+        H0_on    = H_on(chainIdx);
+    end
 
     % initialize current produced pointer and end candidate
     currP = p;
