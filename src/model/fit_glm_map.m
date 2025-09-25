@@ -45,7 +45,7 @@ else
     [bestW, fval, exitflag, output] = fminsearchFallback(objFun, w0, options);
 end
 
-if exitflag <= 0
+if exitflag <= 0 && isfield(output, 'message')
     warning('fit_glm_map:NoConvergence', 'optimizer did not converge: %s', output.message);
 end
 
@@ -55,9 +55,9 @@ wmap.w = bestW;
 fitinfo = struct();
 fitinfo.nll = fval;
 fitinfo.exitflag = exitflag;
-fitinfo.iterations = output.iterations;
-fitinfo.funcCount = output.funcCount;
-fitinfo.gradient = output.gradient;
+fitinfo.iterations = getStructField(output, 'iterations', NaN);
+fitinfo.funcCount = getStructField(output, 'funcCount', NaN);
+fitinfo.gradient = getStructField(output, 'gradient', zeros(size(bestW)));
 end
 
 function val = objectiveWrapper(objFun, w)
@@ -131,8 +131,18 @@ w = wFlat(:);
 
 % fminsearch does not provide gradient, so approximate via objFun
 [~, grad] = objFun(w);
-output = struct('iterations', outputStruct.iterations, ...
-    'funcCount', outputStruct.funcCount, ...
+output = struct('iterations', getStructField(outputStruct, 'iterations', NaN), ...
+    'funcCount', getStructField(outputStruct, 'funcCount', NaN), ...
     'gradient', grad, ...
     'message', 'Fallback fminsearch');
+end
+
+function val = getStructField(s, fieldName, defaultVal)
+% section field helper
+% retrieve a struct field if it exists; otherwise return a default value.
+if isstruct(s) && isfield(s, fieldName)
+    val = s.(fieldName);
+else
+    val = defaultVal;
+end
 end
