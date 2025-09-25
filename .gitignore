@@ -16,6 +16,7 @@ logs/
 scratch/
 models/
 output/
+demos/data/
 
 # but allow tiny toy data and a placeholder
 !data/toy/**
