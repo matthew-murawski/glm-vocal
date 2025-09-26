@@ -62,8 +62,18 @@ if exitflag <= 0 && isfield(output, 'message') && useFminunc
     warning('fit_glm_map:NoConvergence', 'optimizer did not converge: %s', output.message);
 end
 
+% section hessian computation
+% we compute the hessian of the objective function at the solution for standard error calculation.
+mu = exp(X * bestW);
+mu(mu > 1e8) = 1e8; % clip mu to avoid numerical instability
+W = spdiags(mu, 0, size(X, 1), size(X, 1));
+H_nll = X' * W * X;
+H_ridge = 2 * lambda * (Dt * D);
+hessian = H_nll + H_ridge;
+
 wmap = struct();
 wmap.w = bestW;
+wmap.hessian = hessian;
 
 fitinfo = struct();
 fitinfo.nll = fval;
