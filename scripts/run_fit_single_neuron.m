@@ -66,6 +66,7 @@ plot_design_matrix(Xd.X, Xd.colmap, struct('output_path', fullfile(plotDir, 'des
 plot_kernels(kernels, plotDir);
 plot_rate_vs_spikes(stim, Xd.y, mu, plotDir);
 plot_cv_curve(cvinfo, plotDir);
+plot_psths(sp, heardEvents, producedEvents, cfg, plotDir);
 
 summary = qc_session_summary(Xd, wmap, rate, cvinfo, outdir);
 
