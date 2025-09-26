@@ -41,6 +41,37 @@ if isfield(kernels, 'states') && isstruct(kernels.states)
     end
 end
 
+% section statistical test
+% perform a wald test for the difference between conversational and spontaneous state coefficients.
+if isfield(wmap, 'hessian') && isfield(Xd, 'colmap') && isfield(Xd.colmap, 'states')
+    colmap = Xd.colmap.states;
+    if isfield(colmap, 'convo') && isfield(colmap, 'spon')
+        try
+            cov_matrix = inv(wmap.hessian);
+            idx_convo = colmap.convo;
+            idx_spon = colmap.spon;
+
+            w_convo = wmap.w(idx_convo);
+            w_spon = wmap.w(idx_spon);
+            var_convo = cov_matrix(idx_convo, idx_convo);
+            var_spon = cov_matrix(idx_spon, idx_spon);
+            cov_convo_spon = cov_matrix(idx_convo, idx_spon);
+
+            diff = w_convo - w_spon;
+            se_diff = sqrt(var_convo + var_spon - 2 * cov_convo_spon);
+            z_score = diff / se_diff;
+            p_value = 2 * (1 - normcdf(abs(z_score)));
+
+            summary.stats.state_coeffs.difference = diff;
+            summary.stats.state_coeffs.z_score = z_score;
+            summary.stats.state_coeffs.p_value = p_value;
+        catch err
+            warning('qc_session_summary:WaldTestFailed', 'could not compute wald test: %s', err.message);
+        end
+    end
+end
+
+
 % section summary figure
 % compose a lightweight summary figure with rate traces, kernel weights, and cv curve where available.
 fig = figure('Visible', 'off');
@@ -95,13 +126,17 @@ try
         textLines{end+1} = sprintf('mean nll: %.3f', summary.stats.best_lambda_mean_nll); %#ok<AGROW>
     end
     if isfield(summary.stats, 'state_coeffs')
-        textLines{end+1} = '';
-        textLines{end+1} = 'State Coeffs:';
+        textLines{end+1} = ''; %#ok<AGROW>
+        textLines{end+1} = 'State Coeffs:'; %#ok<AGROW>
         if isfield(summary.stats.state_coeffs, 'convo')
-            textLines{end+1} = sprintf('  convo: %.4f', summary.stats.state_coeffs.convo);
+            textLines{end+1} = sprintf('  convo: %.4f', summary.stats.state_coeffs.convo); %#ok<AGROW>
         end
         if isfield(summary.stats.state_coeffs, 'spon')
-            textLines{end+1} = sprintf('  spon: %.4f', summary.stats.state_coeffs.spon);
+            textLines{end+1} = sprintf('  spon: %.4f', summary.stats.state_coeffs.spon); %#ok<AGROW>
+        end
+        if isfield(summary.stats.state_coeffs, 'difference')
+            textLines{end+1} = sprintf('  diff (convo-spon): %.4f', summary.stats.state_coeffs.difference); %#ok<AGROW>
+            textLines{end+1} = sprintf('  z=%.2f, p=%.3f', summary.stats.state_coeffs.z_score, summary.stats.state_coeffs.p_value); %#ok<AGROW>
         end
     end
     text(0, 1, strjoin(textLines, newline), 'VerticalAlignment', 'top');
@@ -136,6 +171,11 @@ if fid ~= -1
         end
         if isfield(summary.stats.state_coeffs, 'spon')
             fprintf(fid, '  spon: %.4f%s', summary.stats.state_coeffs.spon, nl);
+        end
+        if isfield(summary.stats.state_coeffs, 'difference')
+            fprintf(fid, '  diff (convo-spon): %.4f%s', summary.stats.state_coeffs.difference, nl);
+            fprintf(fid, '  z-score: %.2f%s', summary.stats.state_coeffs.z_score, nl);
+            fprintf(fid, '  p-value: %.3f%s', summary.stats.state_coeffs.p_value, nl);
         end
     end
     fclose(fid);
