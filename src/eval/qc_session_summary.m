@@ -1,8 +1,11 @@
-function summary = qc_session_summary(Xd, wmap, rate, cvinfo, outdir)
+function summary = qc_session_summary(Xd, wmap, rate, cvinfo, kernels, outdir)
 % section setup
 % generate summary artifacts (figure, text, json) that capture key qc information for a fitted session.
-if nargin < 5 || isempty(outdir)
+if nargin < 6 || isempty(outdir)
     outdir = pwd;
+end
+if nargin < 5
+    kernels = struct();
 end
 if ~exist(outdir, 'dir')
     mkdir(outdir);
@@ -27,6 +30,15 @@ else
 end
 if isfield(rate, 'metrics')
     summary.stats.metrics = rate.metrics;
+end
+if isfield(kernels, 'states') && isstruct(kernels.states)
+    summary.stats.state_coeffs = struct();
+    if isfield(kernels.states, 'convo')
+        summary.stats.state_coeffs.convo = kernels.states.convo;
+    end
+    if isfield(kernels.states, 'spon')
+        summary.stats.state_coeffs.spon = kernels.states.spon;
+    end
 end
 
 % section summary figure
@@ -82,6 +94,16 @@ try
         textLines{end+1} = sprintf('best lambda: %.3g', summary.stats.best_lambda); %#ok<AGROW>
         textLines{end+1} = sprintf('mean nll: %.3f', summary.stats.best_lambda_mean_nll); %#ok<AGROW>
     end
+    if isfield(summary.stats, 'state_coeffs')
+        textLines{end+1} = '';
+        textLines{end+1} = 'State Coeffs:';
+        if isfield(summary.stats.state_coeffs, 'convo')
+            textLines{end+1} = sprintf('  convo: %.4f', summary.stats.state_coeffs.convo);
+        end
+        if isfield(summary.stats.state_coeffs, 'spon')
+            textLines{end+1} = sprintf('  spon: %.4f', summary.stats.state_coeffs.spon);
+        end
+    end
     text(0, 1, strjoin(textLines, newline), 'VerticalAlignment', 'top');
 
     figPath = fullfile(outdir, 'qc_summary.png');
@@ -106,6 +128,15 @@ if fid ~= -1
     if ~isnan(summary.stats.best_lambda)
         fprintf(fid, 'best lambda: %.6g%s', summary.stats.best_lambda, nl);
         fprintf(fid, 'mean nll (best): %.4f%s', summary.stats.best_lambda_mean_nll, nl);
+    end
+    if isfield(summary.stats, 'state_coeffs')
+        fprintf(fid, '%sState Coefficients:%s', nl, nl);
+        if isfield(summary.stats.state_coeffs, 'convo')
+            fprintf(fid, '  convo: %.4f%s', summary.stats.state_coeffs.convo, nl);
+        end
+        if isfield(summary.stats.state_coeffs, 'spon')
+            fprintf(fid, '  spon: %.4f%s', summary.stats.state_coeffs.spon, nl);
+        end
     end
     fclose(fid);
 else
