@@ -27,8 +27,8 @@ try
         hold off
     end
 
-    filepath = fullfile(outdir, 'cv_curve.png');
-    saveas(fig, filepath);
+    filepath = fullfile(outdir, 'cv_curve.pdf');
+    exportgraphics(fig, filepath, 'ContentType', 'vector');
 catch err
     close(fig);
     rethrow(err);

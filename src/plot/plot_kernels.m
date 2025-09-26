@@ -70,8 +70,8 @@ try
         title(strrep(name, '_', ' '));
         grid on;
     end
-    filepath = fullfile(outdir, 'kernels.png');
-    saveas(fig, filepath);
+    filepath = fullfile(outdir, 'kernels.pdf');
+    exportgraphics(fig, filepath, 'ContentType', 'vector');
 catch err
     close(fig);
     rethrow(err);

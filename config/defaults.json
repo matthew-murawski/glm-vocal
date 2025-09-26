@@ -31,7 +31,7 @@
   "optimizer": {
     "tol_fun": 1e-06,
     "tol_grad": 1e-05,
-    "max_iter": 200
+    "max_iter": 600
   },
   "seed": 42
 }

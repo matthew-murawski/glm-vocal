@@ -16,7 +16,7 @@ tmpDir = tempname;
 mkdir(tmpDir);
 cleanup = onCleanup(@() rmdir(tmpDir, 's'));
 
-opts = struct('col_range', 1:3, 'output_path', fullfile(tmpDir, 'design.png'));
+opts = struct('col_range', 1:3, 'output_path', fullfile(tmpDir, 'design.pdf'));
 plot_design_matrix(X, colmap, opts);
 
 fileInfo = dir(opts.output_path);

@@ -1,19 +1,19 @@
-function demo_s178_snippet()
+function demo_s178()
 % section overview
 % run the single-neuron glm pipeline on the packaged 60 s s178 demo data.
 
 [rootDir, ~] = resolve_paths();
-dataDir = fullfile(rootDir, 'demos', 'data');
+dataDir = '/Users/matt/Documents/GitHub/vocalization/data/demos/';
 
 cfgPath = fullfile(rootDir, 'config', 'defaults.json');
-spikePath = fullfile(dataDir, 'S178_demo_spike_times.mat');
-heardPath = fullfile(dataDir, 'S178_test_heard.txt');
-producedPath = fullfile(dataDir, 'S178_test_produced.txt');
+spikePath = fullfile(dataDir, 'M93A_S178_spike_times.mat');
+heardPath = fullfile(dataDir, 'M93A_S178_heard.txt');
+producedPath = fullfile(dataDir, 'M93A_S178_produced.txt');
 
 timestamp = datestr(now, 'yyyymmdd_HHMMSS');
-outdir = fullfile(rootDir, 'results', ['demo_s178_' timestamp]);
+outdir = fullfile(rootDir, 'results', ['S178_' timestamp]);
 
-fprintf('Running S178 demo → output: %s\n', outdir);
+fprintf('Running S178 → output: %s\n', outdir);
 run_fit_single_neuron(cfgPath, spikePath, heardPath, producedPath, outdir);
 
 fprintf('Finished. Inspect %s for artifacts.\n', outdir);

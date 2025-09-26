@@ -49,9 +49,9 @@ verifyFile(testCase, fullfile(outdir, 'fit_results.mat'));
 verifyFile(testCase, fullfile(outdir, 'qc_summary.png'));
 verifyFile(testCase, fullfile(outdir, 'qc_summary.txt'));
 verifyFile(testCase, fullfile(outdir, 'qc_summary.json'));
-verifyFile(testCase, fullfile(outdir, 'plots', 'kernels.png'));
-verifyFile(testCase, fullfile(outdir, 'plots', 'rate_vs_spikes.png'));
-verifyFile(testCase, fullfile(outdir, 'plots', 'cv_curve.png'));
+verifyFile(testCase, fullfile(outdir, 'plots', 'kernels.pdf'));
+verifyFile(testCase, fullfile(outdir, 'plots', 'rate_vs_spikes.pdf'));
+verifyFile(testCase, fullfile(outdir, 'plots', 'cv_curve.pdf'));
 
 % basic sanity checks on outputs
 fitData = load(fullfile(outdir, 'fit_results.mat'));

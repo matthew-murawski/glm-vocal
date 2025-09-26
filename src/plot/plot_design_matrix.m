@@ -53,7 +53,7 @@ try
     set(gca, 'XTickLabel', labels, 'XTickLabelRotation', 45);
 
     if ~isempty(outputPath)
-        saveas(fig, outputPath);
+        exportgraphics(fig, outputPath, 'ContentType', 'vector');
     end
 catch err
     close(fig);

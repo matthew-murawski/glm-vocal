@@ -62,7 +62,7 @@ kernels = unpack_params(wmap, Xd.colmap, cfg, stim);
 metricsOut = metrics(Xd.y, mu);
 rate = struct('stim', stim, 'y', Xd.y, 'mu', mu, 'metrics', metricsOut);
 
-plot_design_matrix(Xd.X, Xd.colmap, struct('output_path', fullfile(plotDir, 'design_matrix.png')));
+plot_design_matrix(Xd.X, Xd.colmap, struct('output_path', fullfile(plotDir, 'design_matrix.pdf')));
 plot_kernels(kernels, plotDir);
 plot_rate_vs_spikes(stim, Xd.y, mu, plotDir);
 plot_cv_curve(cvinfo, plotDir);

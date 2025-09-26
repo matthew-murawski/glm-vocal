@@ -42,7 +42,15 @@ if useFminunc && exist('fminunc', 'file') == 2
     problem.x0 = w0;
     problem.solver = 'fminunc';
     problem.options = options;
-    [bestW, fval, exitflag, output] = fminunc(problem);
+    try
+        [bestW, fval, exitflag, output, gradOut] = fminunc(problem);
+    catch
+        [bestW, fval, exitflag, output] = fminunc(problem);
+        gradOut = getStructField(output, 'gradient', zeros(size(bestW)));
+    end
+    if ~isfield(output, 'gradient') || isempty(output.gradient)
+        output.gradient = gradOut;
+    end
 else
     options = struct('Display', optCfg.display, ...
         'MaxIter', optCfg.max_iter, ...
@@ -65,11 +73,13 @@ fitinfo.funcCount = getStructField(output, 'funcCount', NaN);
 fitinfo.gradient = getStructField(output, 'gradient', zeros(size(bestW)));
 end
 
-function val = objectiveWrapper(objFun, w)
+function [val, grad] = objectiveWrapper(objFun, w)
 % section objective wrapper
-% ensure the function handle returns scalar values compatible with fminunc.
+% ensure the function handle returns scalar values and gradients compatible with fminunc.
 w = w(:);
-[val, ~] = objFun(w);
+[val, grad] = objFun(w);
+val = double(val);
+grad = double(grad(:));
 end
 
 function [penalty, grad] = l2PenaltyOp(w, D, Dt, lambda)
@@ -113,7 +123,8 @@ try
         'MaxIterations', optCfg.max_iter, ...
         'MaxFunctionEvaluations', optCfg.max_iter * 10, ...
         'OptimalityTolerance', optCfg.tol_grad, ...
-        'StepTolerance', optCfg.tol_fun);
+        'StepTolerance', optCfg.tol_fun, ...
+        'SpecifyObjectiveGradient', true);
 catch
     options = struct('Display', optCfg.display, ...
         'MaxIter', optCfg.max_iter, ...
@@ -121,7 +132,7 @@ catch
         'TolFun', optCfg.tol_fun, ...
         'TolX', optCfg.tol_grad, ...
         'LargeScale', 'off', ...
-        'GradObj', 'off');
+        'GradObj', 'on');
 end
 end
 

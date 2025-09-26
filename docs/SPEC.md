@@ -238,10 +238,10 @@ Xd.info      % dt, windows, etc.
   - `history_kernel.t, history_kernel.w`
   - `state_coeffs = [beta_convo, beta_spon]`
 - `plots/`:
-  - `cv_curve.png`
-  - `kernels.png` (multi-panel)
-  - `rate_vs_spikes.png`
-  - `design_matrix_preview.png`
+  - `cv_curve.pdf`
+  - `kernels.pdf` (multi-panel)
+  - `rate_vs_spikes.pdf`
+  - `design_matrix.pdf`
 
 ---
 

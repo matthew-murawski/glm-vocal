@@ -9,7 +9,7 @@ function testPlotKernelsWritesFile(testCase)
 % confirm kernel plotting saves an output image.
 [kernels, outdir, cleanupObj] = makeKernelFixture(); %#ok<NASGU>
 plot_kernels(kernels, outdir);
-verifyFileExists(testCase, fullfile(outdir, 'kernels.png'));
+verifyFileExists(testCase, fullfile(outdir, 'kernels.pdf'));
 end
 
 function testPlotRateVsSpikesWritesFile(testCase)
@@ -20,7 +20,7 @@ stim = struct('t', (0:0.1:0.5)');
 y = [0; 1; 0; 1; 0; 1];
 mu = [0.2; 0.8; 0.3; 0.9; 0.4; 0.7];
 plot_rate_vs_spikes(stim, y, mu, outdir);
-verifyFileExists(testCase, fullfile(outdir, 'rate_vs_spikes.png'));
+verifyFileExists(testCase, fullfile(outdir, 'rate_vs_spikes.pdf'));
 end
 
 function testPlotCvCurveWritesFile(testCase)
@@ -31,7 +31,7 @@ cvinfo = struct('lambdas', [0.1, 1, 10], ...
     'mean_nll', [1.0, 0.8, 1.1], ...
     'fold_nll', [1.1, 0.9, 1.2; 0.95, 0.75, 1.05; 1.05, 0.85, 1.15]);
 plot_cv_curve(cvinfo, outdir);
-verifyFileExists(testCase, fullfile(outdir, 'cv_curve.png'));
+verifyFileExists(testCase, fullfile(outdir, 'cv_curve.pdf'));
 end
 
 function verifyFileExists(testCase, filepath)
