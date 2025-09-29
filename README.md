@@ -2,7 +2,7 @@
 
 Repo for fitting a generalized linear model (GLM) to natural marmoset conversation data. The pipeline ingests spike times alongside produced and perceived vocalizations, rasterizes them onto a common grid, constructs lagged design matrices, and fits a Poisson GLM with smoothness penalties to recover stimulus kernels, spike-history effects, and conversational context weights.
 
-## What This Repository Provides
+## What
 - End-to-end MATLAB pipeline (`scripts/run_fit_single_neuron.m`) that loads spikes + labels, builds regressors, fits the GLM, and saves metrics, plots, and artifacts.
 - Preprocessing utilities for timebase construction, spike binning, conversational state detection, and regressor stream generation.
 - Feature builders that assemble sparse design matrices with causal/symmetric kernels and smoothness penalties.
@@ -10,7 +10,7 @@ Repo for fitting a generalized linear model (GLM) to natural marmoset conversati
 - Evaluation helpers and plotting scripts for quick QC (kernels, rate vs. spikes, CV curves, PSTHs, design matrix snapshots).
 - Unit and end-to-end tests runnable from MATLAB (or via the provided shell wrapper) to keep the stack stable.
 
-## Repository Layout
+## Layout
 ```
 glm-vocal/
 ├─ README.md                     # project overview (this file)
@@ -72,11 +72,11 @@ Run the full MATLAB test suite (unit + e2e) from the repo root:
 ```
 This wrapper adds `src/` and `tests/` to the MATLAB path and executes all suites with `runtests`.
 
-## Development Notes
+## Notes
 - The pipeline is organized to encourage sparse operations and deterministic workflows; see `docs/BLUEPRINT.md` for phased milestones.
 - All MATLAB functions follow the comment style described in the agent instructions (section headings, informal tone).
 - Additional helper scripts (`scripts/export_state_labels_to_audacity.m`, `scripts/demo_s178.m`) show how to adapt the main entry point to different datasets or export formats.
 
-## Questions & Further Reading
+## Further Reading
 - **Detailed specification**: `docs/SPEC.md`
 - **Implementation plan**: `docs/BLUEPRINT.md`
