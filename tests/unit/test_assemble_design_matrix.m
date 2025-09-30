@@ -33,7 +33,10 @@ function testColumnOrderAndCounts(testCase)
 stim = makeStim(6, 0.1);
 streams = struct();
 streams.heard_any = [0; 1; 0; 1; 0; 0];
-streams.produced_any = [1; 0; 0; 1; 0; 1];
+streams.produced_spontaneous = [1; 0; 0; 0; 1; 0];
+streams.produced_after_heard = [0; 1; 0; 0; 0; 1];
+streams.produced_after_produced = [0; 0; 1; 0; 0; 0];
+streams.produced_any = streams.produced_spontaneous | streams.produced_after_heard | streams.produced_after_produced;
 
 states = struct();
 states.convo = [1; 0; 1; 0; 1; 0];
@@ -46,24 +49,26 @@ Xd = assemble_design_matrix(streams, states, sps, cfg, stim);
 
 testCase.verifyTrue(issparse(Xd.X));
 testCase.verifyEqual(size(Xd.X, 1), numel(stim.t));
-testCase.verifyEqual(size(Xd.X, 2), 12);
+testCase.verifyEqual(size(Xd.X, 2), 18);
 testCase.verifyEqual(Xd.y, sps);
 
 colmap = Xd.colmap;
 testCase.verifyEqual(colmap.intercept.cols, 1);
 testCase.verifyEqual(colmap.heard_any.cols, (2:4));
-testCase.verifyEqual(colmap.produced_any.cols, (5:7));
-testCase.verifyEqual(colmap.states.cols, (8:9));
-testCase.verifyEqual(colmap.states.convo, 8);
-testCase.verifyEqual(colmap.states.spon, 9);
-testCase.verifyEqual(colmap.spike_history.cols, (10:12));
+testCase.verifyEqual(colmap.produced_spontaneous.cols, (5:7));
+testCase.verifyEqual(colmap.produced_after_heard.cols, (8:10));
+testCase.verifyEqual(colmap.produced_after_produced.cols, (11:13));
+testCase.verifyEqual(colmap.states.cols, (14:15));
+testCase.verifyEqual(colmap.states.convo, 14);
+testCase.verifyEqual(colmap.states.spon, 15);
+testCase.verifyEqual(colmap.spike_history.cols, (16:18));
 
 Xfull = full(Xd.X);
 testCase.verifyEqual(Xfull(:, colmap.intercept.cols), ones(6, 1));
-testCase.verifyEqual(colmap.produced_any.info.mode, 'raised_cosine');
-testCase.verifyEqual(colmap.produced_any.info.lag_mode, 'symmetric');
-testCase.verifyEqual(colmap.produced_any.info.basis.n_basis, 3);
-testCase.verifyEqual(size(colmap.produced_any.info.basis.matrix, 2), 3);
+testCase.verifyEqual(colmap.produced_spontaneous.info.mode, 'raised_cosine');
+testCase.verifyEqual(colmap.produced_spontaneous.info.lag_mode, 'symmetric');
+testCase.verifyEqual(colmap.produced_spontaneous.info.basis.n_basis, 3);
+testCase.verifyEqual(size(colmap.produced_spontaneous.info.basis.matrix, 2), 3);
 testCase.verifyEqual(colmap.heard_any.info.mode, 'raised_cosine');
 testCase.verifyEqual(colmap.heard_any.info.lag_mode, 'causal');
 testCase.verifyEqual(colmap.heard_any.info.basis.n_basis, 3);
@@ -76,7 +81,12 @@ function testMaskDropsBadRows(testCase)
 % we ensure the assembler respects mask.good by removing bad rows from X and y.
 goodMask = [true; false; true; false; true];
 stim = makeStim(numel(goodMask), 0.1, goodMask);
-streams = struct('heard_any', double((1:5)' > 2), 'produced_any', double(mod((1:5)', 2)));
+streams = struct();
+streams.heard_any = double((1:5)' > 2);
+streams.produced_spontaneous = double(mod((1:5)', 2) == 0);
+streams.produced_after_heard = double(mod((1:5)', 2) == 1);
+streams.produced_after_produced = zeros(5, 1);
+streams.produced_any = streams.produced_spontaneous | streams.produced_after_heard | streams.produced_after_produced;
 states = struct('convo', double([1; 0; 1; 0; 1]), 'spon', double([0; 1; 0; 1; 0]));
 sps = (5:9)';
 cfg = makeCfg();

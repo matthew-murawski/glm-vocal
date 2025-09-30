@@ -20,10 +20,15 @@ if numel(sps) ~= nT
 end
 
 mustHaveField(streams, 'heard_any');
-mustHaveField(streams, 'produced_any');
+mustHaveField(streams, 'produced_spontaneous');
+mustHaveField(streams, 'produced_after_heard');
+mustHaveField(streams, 'produced_after_produced');
+
 heard = double(streams.heard_any(:));
-produced = double(streams.produced_any(:));
-if numel(heard) ~= nT || numel(produced) ~= nT
+producedSpont = double(streams.produced_spontaneous(:));
+producedAfterHeard = double(streams.produced_after_heard(:));
+producedAfterProduced = double(streams.produced_after_produced(:));
+if numel(heard) ~= nT || numel(producedSpont) ~= nT || numel(producedAfterHeard) ~= nT || numel(producedAfterProduced) ~= nT
     error('assemble_design_matrix:StreamLength', 'stream lengths must match the stimulus grid.');
 end
 
@@ -54,11 +59,13 @@ end
 % we build each regressor block using the feature helpers so we can concatenate them into the design matrix.
 interceptCol = sparse((1:nT)', 1, 1, nT, 1);
 [heardBlk, heardInfo] = build_basis_block(heard, stim, heardWindow, heardBasisCfg, 'causal');
-[producedBlk, producedInfo] = build_basis_block(produced, stim, producedWindow, producedBasisCfg, 'symmetric');
+[producedSpontBlk, producedSpontInfo] = build_basis_block(producedSpont, stim, producedWindow, producedBasisCfg, 'symmetric');
+[producedAfterHeardBlk, producedAfterHeardInfo] = build_basis_block(producedAfterHeard, stim, producedWindow, producedBasisCfg, 'symmetric');
+[producedAfterProducedBlk, producedAfterProducedInfo] = build_basis_block(producedAfterProduced, stim, producedWindow, producedBasisCfg, 'symmetric');
 stateBlk = sparse(double([stateConvo, stateSpon]));
 [historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
 
-X = [interceptCol, heardBlk, producedBlk, stateBlk, historyBlk];
+X = [interceptCol, heardBlk, producedSpontBlk, producedAfterHeardBlk, producedAfterProducedBlk, stateBlk, historyBlk];
 
 % section mask application
 % we drop rows marked bad by the stimulus mask so downstream fitting only sees valid bins.
@@ -81,10 +88,20 @@ heardCols = colStart:(colStart + nHeard - 1);
 colmap.heard_any = struct('cols', heardCols, 'info', heardInfo);
 colStart = colStart + nHeard;
 
-nProduced = size(producedBlk, 2);
-producedCols = colStart:(colStart + nProduced - 1);
-colmap.produced_any = struct('cols', producedCols, 'info', producedInfo);
-colStart = colStart + nProduced;
+nProducedSpont = size(producedSpontBlk, 2);
+producedSpontCols = colStart:(colStart + nProducedSpont - 1);
+colmap.produced_spontaneous = struct('cols', producedSpontCols, 'info', producedSpontInfo);
+colStart = colStart + nProducedSpont;
+
+nProducedAfterHeard = size(producedAfterHeardBlk, 2);
+producedAfterHeardCols = colStart:(colStart + nProducedAfterHeard - 1);
+colmap.produced_after_heard = struct('cols', producedAfterHeardCols, 'info', producedAfterHeardInfo);
+colStart = colStart + nProducedAfterHeard;
+
+nProducedAfterProduced = size(producedAfterProducedBlk, 2);
+producedAfterProducedCols = colStart:(colStart + nProducedAfterProduced - 1);
+colmap.produced_after_produced = struct('cols', producedAfterProducedCols, 'info', producedAfterProducedInfo);
+colStart = colStart + nProducedAfterProduced;
 
 stateCols = colStart:(colStart + 1);
 stateMap = struct();

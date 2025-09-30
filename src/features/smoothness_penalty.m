@@ -151,7 +151,7 @@ function key = lambdaKeyForField(fieldName)
 switch fieldName
     case 'heard_any'
         key = 'heard';
-    case 'produced_any'
+    case {'produced_any', 'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'}
         key = 'produced';
     case 'spike_history'
         key = 'history';
@@ -163,7 +163,7 @@ end
 function tf = shouldPenalize(fieldName, cfg)
 % section penalty selector
 % decide whether a given block should receive a smoothness penalty, defaulting to kernel blocks when the config is silent.
-defaultBlocks = {'heard_any', 'produced_any', 'spike_history'};
+defaultBlocks = {'heard_any', 'produced_spontaneous', 'produced_after_heard', 'produced_after_produced', 'spike_history'};
 if isstruct(cfg) && isfield(cfg, fieldName)
     tf = logical(cfg.(fieldName));
 else

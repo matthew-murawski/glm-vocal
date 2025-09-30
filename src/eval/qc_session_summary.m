@@ -31,6 +31,15 @@ end
 if isfield(rate, 'metrics')
     summary.stats.metrics = rate.metrics;
 end
+
+eventCounts = struct('heard', NaN, ...
+    'produced_spontaneous', NaN, ...
+    'produced_after_heard', NaN, ...
+    'produced_after_produced', NaN);
+if isfield(rate, 'event_counts') && isstruct(rate.event_counts)
+    eventCounts = merge_event_counts(eventCounts, rate.event_counts);
+end
+summary.stats.event_counts = eventCounts;
 if isfield(kernels, 'states') && isstruct(kernels.states)
     summary.stats.state_coeffs = struct();
     if isfield(kernels.states, 'convo')
@@ -121,6 +130,12 @@ try
         sprintf('params: %d', summary.stats.n_params), ...
         sprintf('||w||: %.3f', summary.stats.weight_norm)
     };
+    textLines{end+1} = ''; %#ok<AGROW>
+    textLines{end+1} = 'Event Counts:'; %#ok<AGROW>
+    textLines{end+1} = format_count_line('heard', summary.stats.event_counts.heard); %#ok<AGROW>
+    textLines{end+1} = format_count_line('produced spont', summary.stats.event_counts.produced_spontaneous); %#ok<AGROW>
+    textLines{end+1} = format_count_line('produced after heard', summary.stats.event_counts.produced_after_heard); %#ok<AGROW>
+    textLines{end+1} = format_count_line('produced after produced', summary.stats.event_counts.produced_after_produced); %#ok<AGROW>
     if ~isnan(summary.stats.best_lambda)
         textLines{end+1} = sprintf('best lambda: %.3g', summary.stats.best_lambda); %#ok<AGROW>
         textLines{end+1} = sprintf('mean nll: %.3f', summary.stats.best_lambda_mean_nll); %#ok<AGROW>
@@ -164,6 +179,11 @@ if fid ~= -1
         fprintf(fid, 'best lambda: %.6g%s', summary.stats.best_lambda, nl);
         fprintf(fid, 'mean nll (best): %.4f%s', summary.stats.best_lambda_mean_nll, nl);
     end
+    fprintf(fid, '%sEvent Counts:%s', nl, nl);
+    fprintf(fid, '%s%s', format_count_text('heard', summary.stats.event_counts.heard), nl);
+    fprintf(fid, '%s%s', format_count_text('produced spont', summary.stats.event_counts.produced_spontaneous), nl);
+    fprintf(fid, '%s%s', format_count_text('produced after heard', summary.stats.event_counts.produced_after_heard), nl);
+    fprintf(fid, '%s%s', format_count_text('produced after produced', summary.stats.event_counts.produced_after_produced), nl);
     if isfield(summary.stats, 'state_coeffs')
         fprintf(fid, '%sState Coefficients:%s', nl, nl);
         if isfield(summary.stats.state_coeffs, 'convo')
@@ -200,4 +220,40 @@ catch err
     warning('qc_session_summary:JsonEncodeFailed', 'json encoding failed: %s', err.message);
 end
 summary.paths.json = jsonPath;
+end
+
+function merged = merge_event_counts(template, counts)
+% section merge helper
+% copy available event counts onto the template while preserving missing entries as nan.
+merged = template;
+fields = fieldnames(template);
+for ii = 1:numel(fields)
+    fname = fields{ii};
+    if isfield(counts, fname)
+        val = double(counts.(fname));
+        if isscalar(val) && isfinite(val)
+            merged.(fname) = val;
+        end
+    end
+end
+end
+
+function line = format_count_line(label, value)
+% section figure text helper
+% format event counts for inclusion in the summary figure.
+if isnan(value)
+    line = sprintf('  %s: n/a', label);
+else
+    line = sprintf('  %s: %d', label, round(value));
+end
+end
+
+function textLine = format_count_text(label, value)
+% section text helper
+% format event counts for the plain-text summary file.
+if isnan(value)
+    textLine = sprintf('  %s: n/a', label);
+else
+    textLine = sprintf('  %s: %d', label, round(value));
+end
 end

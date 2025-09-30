@@ -2,8 +2,8 @@ function streams = build_streams(ev, stim)
 % build binary heard/produced streams aligned to the time grid.
 %
 % streams = build_streams(ev, stim) returns logical column vectors marking
-% bins that overlap any perceived or produced event interval on the
-% stimulus timeline.
+% bins containing heard call onsets along with three produced-call context
+% streams derived from a five second lookback window.
 
 %% validate the stimulus grid
 % we ensure the stimulus struct exposes a usable time vector and bin width before rasterizing events.
@@ -18,7 +18,7 @@ end
 t = stim.t(:);
 dt = stim.dt;
 if isempty(t)
-    streams = struct('heard_any', false(0, 1), 'produced_any', false(0, 1));
+    streams = emptyStreams();
     return
 end
 if ~isscalar(dt) || ~isfinite(dt) || dt <= 0
@@ -30,9 +30,11 @@ gridStart = t(1);
 %% partition events by kind
 % we split the input events into perceived/produced lists and preallocate logical outputs.
 heardStream = false(nBins, 1);
-producedStream = false(nBins, 1);
+producedSpontStream = false(nBins, 1);
+producedAfterHeardStream = false(nBins, 1);
+producedAfterProducedStream = false(nBins, 1);
 if isempty(ev)
-    streams = struct('heard_any', heardStream, 'produced_any', producedStream);
+    streams = packageStreams(heardStream, producedSpontStream, producedAfterHeardStream, producedAfterProducedStream);
     return
 end
 if ~isstruct(ev) || ~all(isfield(ev, {'kind', 't_on', 't_off'}))
@@ -43,18 +45,52 @@ kindCells = cellfun(@char, {ev.kind}, 'UniformOutput', false);
 heardMask = strcmp(kindCells, 'perceived');
 producedMask = strcmp(kindCells, 'produced');
 
+lookbackWindowS = 5.0;
+
 %% rasterize each event subset
 % we mark both perceived and produced call onsets with impulses so downstream kernels align to event starts.
 if any(heardMask)
     heardStream = mark_event_onsets(ev(heardMask), gridStart, dt, nBins);
 end
 if any(producedMask)
-    producedStream = mark_event_onsets(ev(producedMask), gridStart, dt, nBins);
+    categoryIdx = classify_produced_events(ev, producedMask, lookbackWindowS);
+    if ~isempty(categoryIdx.produced_spontaneous)
+        producedSpontStream = mark_event_onsets(ev(categoryIdx.produced_spontaneous), gridStart, dt, nBins);
+    end
+    if ~isempty(categoryIdx.produced_after_heard)
+        producedAfterHeardStream = mark_event_onsets(ev(categoryIdx.produced_after_heard), gridStart, dt, nBins);
+    end
+    if ~isempty(categoryIdx.produced_after_produced)
+        producedAfterProducedStream = mark_event_onsets(ev(categoryIdx.produced_after_produced), gridStart, dt, nBins);
+    end
 end
 
 %% package the result
 % we expose the logical streams with a consistent struct interface used downstream.
-streams = struct('heard_any', heardStream, 'produced_any', producedStream);
+streams = packageStreams(heardStream, producedSpontStream, producedAfterHeardStream, producedAfterProducedStream);
+end
+
+function streams = emptyStreams()
+% construct an empty streams struct with all produced categories represented.
+heard = false(0, 1);
+produced = false(0, 1);
+streams = struct( ...
+    'heard_any', heard, ...
+    'produced_spontaneous', produced, ...
+    'produced_after_heard', produced, ...
+    'produced_after_produced', produced, ...
+    'produced_any', produced);
+end
+
+function streams = packageStreams(heardStream, producedSpont, producedAfterHeard, producedAfterProduced)
+% bundle the individual streams while exposing an aggregate produced field for compatibility.
+producedAny = producedSpont | producedAfterHeard | producedAfterProduced;
+streams = struct();
+streams.heard_any = heardStream;
+streams.produced_spontaneous = producedSpont;
+streams.produced_after_heard = producedAfterHeard;
+streams.produced_after_produced = producedAfterProduced;
+streams.produced_any = producedAny;
 end
 
 function stream = rasterize_events(events, gridStart, dt, nBins)

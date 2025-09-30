@@ -17,8 +17,16 @@ if isfield(colmap, 'heard_any') && isfield(colmap.heard_any, 'cols')
     kernels.heard_any = buildKernelBlock(w, colmap.heard_any);
 end
 
-% section produced kernel
-% slice the produced kernel weights (symmetric window) with metadata.
+% section produced kernels
+% slice each produced-call context kernel (symmetric windows) while keeping backward compatibility with the aggregate field.
+producedFields = {'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'};
+for ii = 1:numel(producedFields)
+    fname = producedFields{ii};
+    if isfield(colmap, fname) && isfield(colmap.(fname), 'cols')
+        kernels.(fname) = buildKernelBlock(w, colmap.(fname));
+    end
+end
+
 if isfield(colmap, 'produced_any') && isfield(colmap.produced_any, 'cols')
     kernels.produced_any = buildKernelBlock(w, colmap.produced_any);
 end

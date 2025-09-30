@@ -1,43 +1,65 @@
 function plot_psths(sp, heardEvents, producedEvents, cfg, outdir)
-% makes a figure with two psth subplots: one for heard, one for produced.
-% this helps compare the raw firing rate patterns to the glm kernels.
+% render psths for heard calls plus produced calls split by conversational context.
 
-% section 1: set up the figure
-% we'll create a figure to hold the two subplots. this is created with
-% 'Visible','off' because this is intended for a script, not interactive use.
-fig = figure('Name', 'PSTHs', 'Color', 'w', 'Position', [100, 100, 800, 600], 'Visible', 'off');
+% section setup figure
+% build a four-panel layout so heard responses and produced subtypes are visible together.
+fig = figure('Name', 'PSTHs', 'Color', 'w', 'Position', [100, 100, 900, 700], 'Visible', 'off');
+tile = tiledlayout(fig, 2, 2, 'TileSpacing', 'compact');
 
-% section 2: plot psth for heard calls
-% this subplot shows the neuron's response aligned to the onset of calls it heard.
-ax1 = subplot(2, 1, 1);
+% section heard psth
+% first panel shows alignment to heard call onsets.
+ax = nexttile(tile);
 if ~isempty(heardEvents)
-    % we use the existing psth.m function to do the heavy lifting.
-    % the window and bin size are taken from the config to match the glm.
     psth(sp.spike_times, [heardEvents.t_on], cfg.heard_window_s, cfg.dt, ...
-        'Axes', ax1, 'Title', 'psth aligned to heard calls');
+        'Axes', ax, 'Title', 'psth: heard calls');
 else
-    % if there are no heard events, we just show an empty plot with a title.
-    title(ax1, 'psth aligned to heard calls (no events)');
-    box(ax1, 'on');
-    set(ax1, 'xtick', [], 'ytick', []);
+    title(ax, 'psth: heard calls (no events)');
+    box(ax, 'on');
+    set(ax, 'xtick', [], 'ytick', []);
 end
 
-% section 3: plot psth for produced calls
-% this subplot shows the neuron's response aligned to its own calls.
-ax2 = subplot(2, 1, 2);
-if ~isempty(producedEvents)
-    % same as above, but for the produced calls.
-    % note that the window for produced calls can be different from heard calls.
-    psth(sp.spike_times, [producedEvents.t_on], cfg.produced_window_s, cfg.dt, ...
-        'Axes', ax2, 'Title', 'psth aligned to produced calls');
-else
-    % handle the case with no produced events.
-    title(ax2, 'psth aligned to produced calls (no events)');
-    box(ax2, 'on');
-    set(ax2, 'xtick', [], 'ytick', []);
+% section prepare produced subsets
+% categorise produced calls using the same five second lookback as the glm preprocessing.
+combinedEvents = [heardEvents(:); producedEvents(:)];
+if ~isempty(combinedEvents)
+    [~, order] = sort(double([combinedEvents.t_on]));
+    combinedEvents = combinedEvents(order);
 end
 
-% section 4: save the figure
+if isempty(combinedEvents)
+    kindCells = {};
+    producedMask = false(0, 1);
+else
+    kindCells = cellfun(@char, {combinedEvents.kind}, 'UniformOutput', false);
+    producedMask = strcmp(kindCells, 'produced');
+end
+lookbackWindowS = 5.0;
+categoryIdx = classify_produced_events(combinedEvents, producedMask, lookbackWindowS);
+
+producedSets = {
+    struct('title', 'psth: produced spont', 'indices', categoryIdx.produced_spontaneous), ...
+    struct('title', 'psth: produced after heard', 'indices', categoryIdx.produced_after_heard), ...
+    struct('title', 'psth: produced after produced', 'indices', categoryIdx.produced_after_produced)
+};
+
+% section produced psths
+% remaining panels show each produced-call context separately.
+for kk = 1:numel(producedSets)
+    ax = nexttile(tile);
+    idx = producedSets{kk}.indices;
+    if isempty(idx)
+        title(ax, [producedSets{kk}.title, ' (no events)']);
+        box(ax, 'on');
+        set(ax, 'xtick', [], 'ytick', []);
+        continue
+    end
+
+    producedSubset = combinedEvents(idx);
+    psth(sp.spike_times, [producedSubset.t_on], cfg.produced_window_s, cfg.dt, ...
+        'Axes', ax, 'Title', producedSets{kk}.title);
+end
+
+% section save figure
 % we save the whole figure as a pdf in the specified output directory.
 output_path = fullfile(outdir, 'psth.pdf');
 try

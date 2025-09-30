@@ -60,7 +60,8 @@ fitfun = @(XdTrain, Dtrain, lambda) fit_glm_map(XdTrain, Dtrain, lambda, cfg.opt
 mu = predict_rate(Xd.X, wmap.w);
 kernels = unpack_params(wmap, Xd.colmap, cfg, stim);
 metricsOut = metrics(Xd.y, mu);
-rate = struct('stim', stim, 'y', Xd.y, 'mu', mu, 'metrics', metricsOut);
+eventCounts = summarize_event_counts(streams);
+rate = struct('stim', stim, 'y', Xd.y, 'mu', mu, 'metrics', metricsOut, 'event_counts', eventCounts);
 
 plot_design_matrix(Xd.X, Xd.colmap, struct('output_path', fullfile(plotDir, 'design_matrix.pdf')));
 plot_kernels(kernels, plotDir);
@@ -119,6 +120,32 @@ end
 function ensure_dir(pathStr)
 if exist(pathStr, 'dir') ~= 7
     mkdir(pathStr);
+end
+end
+
+function counts = summarize_event_counts(streams)
+% section event counts
+% collect heard and produced-context event counts from the stream struct when available.
+counts = struct('heard', NaN, ...
+    'produced_spontaneous', NaN, ...
+    'produced_after_heard', NaN, ...
+    'produced_after_produced', NaN);
+
+if ~isstruct(streams)
+    return
+end
+
+if isfield(streams, 'heard_any')
+    counts.heard = sum(double(streams.heard_any(:)) > 0);
+end
+if isfield(streams, 'produced_spontaneous')
+    counts.produced_spontaneous = sum(double(streams.produced_spontaneous(:)) > 0);
+end
+if isfield(streams, 'produced_after_heard')
+    counts.produced_after_heard = sum(double(streams.produced_after_heard(:)) > 0);
+end
+if isfield(streams, 'produced_after_produced')
+    counts.produced_after_produced = sum(double(streams.produced_after_produced(:)) > 0);
 end
 end
 

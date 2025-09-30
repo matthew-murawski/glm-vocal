@@ -39,36 +39,49 @@ if isempty(plotNames)
     return
 end
 
-fig = figure('Visible', 'off');
+fig = figure('Visible', 'off', 'Color', 'w', 'Position', [100, 100, 640, 900]);
 try
     nPlots = numel(plotNames);
-    tiledlayout(fig, nPlots, 1, 'TileSpacing', 'compact');
+    if nPlots == 0
+        close(fig);
+        return
+    end
+
+    nCols = min(2, nPlots);
+    nRows = ceil(nPlots / nCols);
+    tile = tiledlayout(fig, nRows, nCols, 'TileSpacing', 'compact', 'Padding', 'compact');
     for jj = 1:nPlots
-        nexttile;
+        ax = nexttile(tile);
         data = plotData{jj};
         meta = plotMeta{jj};
         name = plotNames{jj};
         if strcmp(name, 'states')
-            bar(data);
-            xticks(1:numel(data));
+            bar(ax, data);
+            xticks(ax, 1:numel(data));
             if isfield(kernels.states, 'names')
-                xticklabels(kernels.states.names);
+                xticklabels(ax, kernels.states.names);
             else
-                xticklabels(compose('state %d', 1:numel(data)));
+                xticklabels(ax, compose('state %d', 1:numel(data)));
             end
-            ylabel('weight');
+            ylabel(ax, 'weight');
         elseif strcmp(name, 'intercept')
-            plot(0, data, 'o');
-            xlim([-0.5, 0.5]);
-            ylabel('intercept');
-            xticklabels({});
+            yline(ax, data, 'LineWidth', 1.5);
+            xlim(ax, [-0.5, 0.5]);
+            ylabel(ax, 'intercept');
+            xticklabels(ax, {});
+            pad = max(0.05, 0.1 * max(1, abs(data)));
+            ylim(ax, data + [-pad, pad]);
         else
-            plot(meta, data, '-o');
-            xlabel('lag (s)');
-            ylabel('weight');
+            plot(ax, meta, data, 'LineWidth', 1.5);
+            xlabel(ax, 'lag (s)');
+            ylabel(ax, 'weight');
         end
-        title(strrep(name, '_', ' '));
-        grid on;
+        title(ax, strrep(name, '_', ' '));
+        grid(ax, 'on');
+        if ~strcmp(name, 'intercept')
+            axis(ax, 'tight');
+        end
+        set(ax, 'PlotBoxAspectRatio', [1 1 1]);
     end
     filepath = fullfile(outdir, 'kernels.pdf');
     exportgraphics(fig, filepath, 'ContentType', 'vector');
