@@ -1,4 +1,4 @@
-function [Xblk, info] = build_basis_block(z, stim, window_s, basisCfg)
+function [Xblk, info] = build_basis_block(z, stim, window_s, basisCfg, mode)
 % build a basis-projected design block from an impulse stream.
 %
 % z must already be aligned to the stimulus grid (column vector). window_s
@@ -10,8 +10,11 @@ function [Xblk, info] = build_basis_block(z, stim, window_s, basisCfg)
 if nargin < 4 || isempty(basisCfg)
     basisCfg = struct('kind', 'raised_cosine');
 end
+if nargin < 5 || isempty(mode)
+    mode = 'symmetric';
+end
 
-[lagBlk, lagInfo] = build_kernel_block(z, stim, window_s, 'symmetric');
+[lagBlk, lagInfo] = build_kernel_block(z, stim, window_s, mode);
 
 kind = 'raised_cosine';
 if isstruct(basisCfg) && isfield(basisCfg, 'kind') && ~isempty(basisCfg.kind)
@@ -38,6 +41,7 @@ end
 % expose lag and basis details so downstream code can reconstruct kernels for plotting.
 info = struct();
 info.mode = basisMeta.mode;
+info.lag_mode = mode;
 info.window_s = window_s;
 info.lag_bins = lagInfo.lag_bins;
 info.lag_times_s = lagInfo.lag_times_s;

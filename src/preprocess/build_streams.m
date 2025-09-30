@@ -44,9 +44,9 @@ heardMask = strcmp(kindCells, 'perceived');
 producedMask = strcmp(kindCells, 'produced');
 
 %% rasterize each event subset
-% we convert perceived intervals into occupancy and mark produced onsets with impulses so downstream kernels align to call starts.
+% we mark both perceived and produced call onsets with impulses so downstream kernels align to event starts.
 if any(heardMask)
-    heardStream = rasterize_events(ev(heardMask), gridStart, dt, nBins);
+    heardStream = mark_event_onsets(ev(heardMask), gridStart, dt, nBins);
 end
 if any(producedMask)
     producedStream = mark_event_onsets(ev(producedMask), gridStart, dt, nBins);
@@ -113,6 +113,13 @@ for ii = 1:numel(events)
     tOn = double(events(ii).t_on);
     if ~isfinite(tOn)
         continue
+    end
+
+    if isfield(events, 't_off')
+        tOff = double(events(ii).t_off);
+        if isfinite(tOff) && tOff <= tOn
+            continue
+        end
     end
 
     offset = (tOn - gridStart) / dt;

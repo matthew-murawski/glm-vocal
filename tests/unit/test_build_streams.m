@@ -26,8 +26,8 @@ ev = struct('kind', 'perceived', 't_on', 0.05, 't_off', 0.25, 'label', "");
 %% run the stream builder
 streams = build_streams(ev, stim);
 
-%% confirm only the expected bins are marked
-expectedHeard = logical([1; 1; 1; 0; 0; 0]);
+%% confirm the impulse aligns with the onset bin only
+expectedHeard = logical([1; 0; 0; 0; 0; 0]);
 expectedProduced = false(numel(stim.t), 1);
 testCase.verifyEqual(streams.heard_any, expectedHeard);
 testCase.verifyEqual(streams.produced_any, expectedProduced);
@@ -55,8 +55,8 @@ ev = [perceivedEv(:); producedEv(:)];
 %% run the stream builder
 streams = build_streams(ev, stim);
 
-%% confirm the perceived occupancy and produced impulses align with expectations
-testCase.verifyEqual(streams.heard_any, logical([1; 1; 1; 1; 0; 0]));
+%% confirm the perceived and produced impulse streams align with expectations
+testCase.verifyEqual(streams.heard_any, logical([1; 1; 0; 0; 0; 0]));
 testCase.verifyEqual(streams.produced_any, logical([0; 1; 0; 1; 0; 0]));
 end
 

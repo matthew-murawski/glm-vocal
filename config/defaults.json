@@ -10,7 +10,7 @@
   ],
   "history_window_s": [
     0.1,
-    0.2
+    0.5
   ],
   "cv": {
     "k": 5,
@@ -36,6 +36,12 @@
   },
   "seed": 42,
   "produced_basis": {
+    "kind": "raised_cosine",
+    "n_basis": 8,
+    "overlap": 2.0,
+    "normalize": "l1"
+  },
+  "heard_basis": {
     "kind": "raised_cosine",
     "n_basis": 8,
     "overlap": 2.0,

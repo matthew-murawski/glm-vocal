@@ -38,6 +38,7 @@ end
 heardWindow = fetchWindow(cfg, 'heard_window_s');
 producedWindow = fetchWindow(cfg, 'produced_window_s');
 historyWindow = fetchWindow(cfg, 'history_window_s');
+heardBasisCfg = fetchBasis(cfg, 'heard_basis');
 producedBasisCfg = fetchBasis(cfg, 'produced_basis');
 
 goodMask = true(nT, 1);
@@ -52,8 +53,8 @@ end
 % section block construction
 % we build each regressor block using the feature helpers so we can concatenate them into the design matrix.
 interceptCol = sparse((1:nT)', 1, 1, nT, 1);
-[heardBlk, heardInfo] = build_kernel_block(heard, stim, heardWindow, 'causal');
-[producedBlk, producedInfo] = build_basis_block(produced, stim, producedWindow, producedBasisCfg);
+[heardBlk, heardInfo] = build_basis_block(heard, stim, heardWindow, heardBasisCfg, 'causal');
+[producedBlk, producedInfo] = build_basis_block(produced, stim, producedWindow, producedBasisCfg, 'symmetric');
 stateBlk = sparse(double([stateConvo, stateSpon]));
 [historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
 
