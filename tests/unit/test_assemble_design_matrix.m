@@ -22,6 +22,7 @@ function cfg = makeCfg()
 cfg = struct();
 cfg.heard_window_s = [0.0, 0.2];
 cfg.produced_window_s = [-0.1, 0.2];
+cfg.produced_basis = struct('kind', 'raised_cosine', 'n_basis', 3, 'overlap', 1.5, 'normalize', 'l1');
 cfg.history_window_s = [0.1, 0.3];
 end
 
@@ -44,21 +45,23 @@ Xd = assemble_design_matrix(streams, states, sps, cfg, stim);
 
 testCase.verifyTrue(issparse(Xd.X));
 testCase.verifyEqual(size(Xd.X, 1), numel(stim.t));
-testCase.verifyEqual(size(Xd.X, 2), 13);
+testCase.verifyEqual(size(Xd.X, 2), 12);
 testCase.verifyEqual(Xd.y, sps);
 
 colmap = Xd.colmap;
 testCase.verifyEqual(colmap.intercept.cols, 1);
 testCase.verifyEqual(colmap.heard_any.cols, (2:4));
-testCase.verifyEqual(colmap.produced_any.cols, (5:8));
-testCase.verifyEqual(colmap.states.cols, (9:10));
-testCase.verifyEqual(colmap.states.convo, 9);
-testCase.verifyEqual(colmap.states.spon, 10);
-testCase.verifyEqual(colmap.spike_history.cols, (11:13));
+testCase.verifyEqual(colmap.produced_any.cols, (5:7));
+testCase.verifyEqual(colmap.states.cols, (8:9));
+testCase.verifyEqual(colmap.states.convo, 8);
+testCase.verifyEqual(colmap.states.spon, 9);
+testCase.verifyEqual(colmap.spike_history.cols, (10:12));
 
 Xfull = full(Xd.X);
 testCase.verifyEqual(Xfull(:, colmap.intercept.cols), ones(6, 1));
-testCase.verifyEqual(colmap.produced_any.info.mode, 'symmetric');
+testCase.verifyEqual(colmap.produced_any.info.mode, 'raised_cosine');
+testCase.verifyEqual(colmap.produced_any.info.basis.n_basis, 3);
+testCase.verifyEqual(size(colmap.produced_any.info.basis.matrix, 2), 3);
 testCase.verifyEqual(colmap.heard_any.info.mode, 'causal');
 testCase.verifyEqual(colmap.spike_history.info.mode, 'history');
 end

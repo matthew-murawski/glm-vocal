@@ -24,7 +24,12 @@ wmap = struct('w', w);
 colmap = struct();
 colmap.intercept = struct('cols', 1, 'name', 'intercept');
 colmap.heard_any = struct('cols', 2:3, 'info', struct('lag_bins', (0:1)', 'lag_times_s', (0:1)' * 0.01, 'window_s', [0, 0.01], 'mode', 'causal'));
-colmap.produced_any = struct('cols', 4:5, 'info', struct('lag_bins', (-1:0)', 'lag_times_s', (-1:0)' * 0.01, 'window_s', [-0.01, 0], 'mode', 'symmetric'));
+
+basisMatrix = eye(2);
+basisStruct = struct('mode', 'raised_cosine', 'matrix', basisMatrix, 'n_basis', 2, ...
+    'centers_s', (-1:0)' * 0.01, 'half_width_s', ones(2, 1) * 0.01, 'normalize', 'l1', 'lag_step_s', 0.01);
+colmap.produced_any = struct('cols', 4:5, 'info', struct('lag_bins', (-1:0)', ...
+    'lag_times_s', (-1:0)' * 0.01, 'window_s', [-0.01, 0], 'mode', 'raised_cosine', 'basis', basisStruct));
 colmap.spike_history = struct('cols', 6, 'info', struct('lag_bins', 1, 'lag_times_s', 0.01, 'window_s', [0.01, 0.01], 'mode', 'history'));
 colmap.states = struct('cols', [7 8], 'names', {{'convo', 'spon'}}, 'convo', 7, 'spon', 8);
 
@@ -38,7 +43,8 @@ testCase.verifyEqual(kernels.heard_any.mode, 'causal');
 testCase.verifyEqual(kernels.heard_any.lag_bins, (0:1)');
 
 testCase.verifyEqual(kernels.produced_any.weights, w(4:5));
-testCase.verifyEqual(kernels.produced_any.mode, 'symmetric');
+testCase.verifyEqual(kernels.produced_any.mode, 'raised_cosine');
+testCase.verifyEqual(kernels.produced_any.coeffs, w(4:5));
 
 testCase.verifyEqual(kernels.spike_history.weights, w(6));
 

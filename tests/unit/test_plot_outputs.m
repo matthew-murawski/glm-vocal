@@ -16,7 +16,7 @@ function testPlotRateVsSpikesWritesFile(testCase)
 % section rate plot
 % confirm rate-vs-spikes plot saves an output image.
 [~, outdir, cleanupObj] = makeKernelFixture(); %#ok<NASGU>
-stim = struct('t', (0:0.1:0.5)');
+stim = struct('t', (0:0.1:0.5)', 'dt', 0.1);
 y = [0; 1; 0; 1; 0; 1];
 mu = [0.2; 0.8; 0.3; 0.9; 0.4; 0.7];
 plot_rate_vs_spikes(stim, y, mu, outdir);

@@ -1,0 +1,6 @@
+QC SUMMARY
+bins: 20
+params: 5
+||w||: 2.7189
+best lambda: 1
+mean nll (best): 0.8000

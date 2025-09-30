@@ -38,6 +38,7 @@ end
 heardWindow = fetchWindow(cfg, 'heard_window_s');
 producedWindow = fetchWindow(cfg, 'produced_window_s');
 historyWindow = fetchWindow(cfg, 'history_window_s');
+producedBasisCfg = fetchBasis(cfg, 'produced_basis');
 
 goodMask = true(nT, 1);
 if isfield(stim, 'mask') && isstruct(stim.mask) && isfield(stim.mask, 'good') && ~isempty(stim.mask.good)
@@ -52,7 +53,7 @@ end
 % we build each regressor block using the feature helpers so we can concatenate them into the design matrix.
 interceptCol = sparse((1:nT)', 1, 1, nT, 1);
 [heardBlk, heardInfo] = build_kernel_block(heard, stim, heardWindow, 'causal');
-[producedBlk, producedInfo] = build_kernel_block(produced, stim, producedWindow, 'symmetric');
+[producedBlk, producedInfo] = build_basis_block(produced, stim, producedWindow, producedBasisCfg);
 stateBlk = sparse(double([stateConvo, stateSpon]));
 [historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
 
@@ -114,6 +115,23 @@ end
 window = double(cfg.(fieldName));
 if ~isnumeric(window) || numel(window) ~= 2
     error('assemble_design_matrix:WindowShape', 'config field %s must be a two-element numeric vector.', fieldName);
+end
+end
+
+function basisCfg = fetchBasis(cfg, fieldName)
+% section basis helper
+% pull a basis configuration struct or fall back to the default raised-cosine family.
+if ~isstruct(cfg) || ~isfield(cfg, fieldName)
+    basisCfg = struct('kind', 'raised_cosine');
+    return
+end
+
+basisCfg = cfg.(fieldName);
+if ~isstruct(basisCfg)
+    error('assemble_design_matrix:BasisShape', 'config field %s must be a struct.', fieldName);
+end
+if ~isfield(basisCfg, 'kind') || isempty(basisCfg.kind)
+    basisCfg.kind = 'raised_cosine';
 end
 end
 

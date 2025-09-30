@@ -44,12 +44,12 @@ heardMask = strcmp(kindCells, 'perceived');
 producedMask = strcmp(kindCells, 'produced');
 
 %% rasterize each event subset
-% we convert interval lists into logical streams by marking bins that overlap each event.
+% we convert perceived intervals into occupancy and mark produced onsets with impulses so downstream kernels align to call starts.
 if any(heardMask)
     heardStream = rasterize_events(ev(heardMask), gridStart, dt, nBins);
 end
 if any(producedMask)
-    producedStream = rasterize_events(ev(producedMask), gridStart, dt, nBins);
+    producedStream = mark_event_onsets(ev(producedMask), gridStart, dt, nBins);
 end
 
 %% package the result
@@ -94,5 +94,34 @@ for ii = 1:numel(events)
     end
 
     stream(startIdx:endIdx) = true;
+end
+end
+
+function impulses = mark_event_onsets(events, gridStart, dt, nBins)
+% convert produced call onsets into a sparse impulse train aligned to the grid.
+
+%% initialize the impulse stream
+% we start with zeros so only bins containing call onsets receive a one.
+impulses = false(nBins, 1);
+if isempty(events)
+    return
+end
+
+%% iterate over events
+% we locate the bin containing each onset and flip it on, clipping out-of-range onsets.
+for ii = 1:numel(events)
+    tOn = double(events(ii).t_on);
+    if ~isfinite(tOn)
+        continue
+    end
+
+    offset = (tOn - gridStart) / dt;
+    tol = max([1e-9, eps(offset), eps(dt)]);
+    idx = floor(offset + tol) + 1;
+    if idx < 1 || idx > nBins
+        continue
+    end
+
+    impulses(idx) = true;
 end
 end

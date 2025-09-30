@@ -1,15 +1,15 @@
 {
-  "dt": 0.01,
+  "dt": 0.1,
   "heard_window_s": [
     0.0,
-    0.4
+    4
   ],
   "produced_window_s": [
-    -0.5,
-    0.5
+    -4,
+    4
   ],
   "history_window_s": [
-    0.01,
+    0.1,
     0.2
   ],
   "cv": {
@@ -21,7 +21,8 @@
       3.0,
       10.0,
       30.0,
-      100.0
+      100.0,
+      200.0
     ]
   },
   "state": {
@@ -33,5 +34,11 @@
     "tol_grad": 1e-05,
     "max_iter": 600
   },
-  "seed": 42
+  "seed": 42,
+  "produced_basis": {
+    "kind": "raised_cosine",
+    "n_basis": 8,
+    "overlap": 2.0,
+    "normalize": "l1"
+  }
 }

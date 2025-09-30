@@ -55,9 +55,9 @@ ev = [perceivedEv(:); producedEv(:)];
 %% run the stream builder
 streams = build_streams(ev, stim);
 
-%% confirm the union of intervals is reflected in each stream
+%% confirm the perceived occupancy and produced impulses align with expectations
 testCase.verifyEqual(streams.heard_any, logical([1; 1; 1; 1; 0; 0]));
-testCase.verifyEqual(streams.produced_any, logical([0; 1; 1; 1; 1; 0]));
+testCase.verifyEqual(streams.produced_any, logical([0; 1; 0; 1; 0; 0]));
 end
 
 function testEdgeInclusionConventions(testCase)

@@ -1,6 +1,6 @@
 function demo_s178()
 % section overview
-% run the single-neuron glm pipeline on the packaged 60 s s178 demo data.
+% run the single-neuron glm pipeline on all of s178.
 
 [rootDir, ~] = resolve_paths();
 dataDir = '/Users/matt/Documents/GitHub/vocalization/data/demos/';

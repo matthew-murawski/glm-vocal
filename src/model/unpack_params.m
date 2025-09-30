@@ -52,7 +52,6 @@ function block = buildKernelBlock(w, blockDef)
 % create a kernel struct populated with weights and any metadata supplied in colmap.
 weights = w(blockDef.cols(:));
 block = struct();
-block.weights = weights;
 if isfield(blockDef, 'info') && isstruct(blockDef.info)
     info = blockDef.info;
     infoFields = fieldnames(info);
@@ -60,5 +59,14 @@ if isfield(blockDef, 'info') && isstruct(blockDef.info)
         fieldName = infoFields{ii};
         block.(fieldName) = info.(fieldName);
     end
+else
+    info = struct();
+end
+
+if isfield(block, 'basis') && isstruct(block.basis) && isfield(block.basis, 'matrix')
+    block.coeffs = weights;
+    block.weights = block.basis.matrix * block.coeffs;
+else
+    block.weights = weights;
 end
 end
