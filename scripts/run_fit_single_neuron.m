@@ -59,12 +59,13 @@ fitfun = @(XdTrain, Dtrain, lambda) fit_glm_map(XdTrain, Dtrain, lambda, cfg.opt
 
 mu = predict_rate(Xd.X, wmap.w);
 kernels = unpack_params(wmap, Xd.colmap, cfg, stim);
+ptest = perform_permutation_test(kernels, Xd, D, best_lambda, cfg, stim);
 metricsOut = metrics(Xd.y, mu);
 eventCounts = summarize_event_counts(streams);
 rate = struct('stim', stim, 'y', Xd.y, 'mu', mu, 'metrics', metricsOut, 'event_counts', eventCounts);
 
 plot_design_matrix(Xd.X, Xd.colmap, struct('output_path', fullfile(plotDir, 'design_matrix.pdf')));
-plot_kernels(kernels, plotDir);
+plot_kernels(kernels, ptest, plotDir);
 plot_rate_vs_spikes(stim, Xd.y, mu, plotDir);
 plot_cv_curve(cvinfo, plotDir);
 plot_psths(sp, heardEvents, producedEvents, cfg, plotDir);
@@ -72,11 +73,11 @@ plot_psths(sp, heardEvents, producedEvents, cfg, plotDir);
 summary = qc_session_summary(Xd, wmap, rate, cvinfo, kernels, outdir);
 
 artifactPath = fullfile(outdir, 'fit_results.mat');
-save(artifactPath, 'cfg', 'sp', 'events', 'stim', 'sps', 'streams', 'states', 'Xd', 'D', 'Dmap', 'best_lambda', 'cvinfo', 'wmap', 'fitinfo', 'kernels', 'metricsOut', 'summary');
+save(artifactPath, 'cfg', 'sp', 'events', 'stim', 'sps', 'streams', 'states', 'Xd', 'D', 'Dmap', 'best_lambda', 'cvinfo', 'wmap', 'fitinfo', 'kernels', 'ptest', 'metricsOut', 'summary');
 
 if nargout > 0
     result = struct('cfg', cfg, 'sp', sp, 'events', events, 'Xd', Xd, 'wmap', wmap, ...
-        'cvinfo', cvinfo, 'fitinfo', fitinfo, 'kernels', kernels, 'metrics', metricsOut, ...
+        'cvinfo', cvinfo, 'fitinfo', fitinfo, 'kernels', kernels, 'ptest', ptest, 'metrics', metricsOut, ...
         'summary', summary, 'paths', struct('outdir', outdir, 'artifact', artifactPath, 'plots', plotDir));
 end
 end
