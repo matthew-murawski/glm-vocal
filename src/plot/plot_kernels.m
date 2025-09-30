@@ -1,7 +1,10 @@
-function plot_kernels(kernels, outdir)
+function plot_kernels(kernels, ptest, outdir)
 % section setup
 % render kernel weight traces and scalar summaries to disk for quick qc.
-if nargin < 2 || isempty(outdir)
+if nargin < 2
+    ptest = [];
+end
+if nargin < 3 || isempty(outdir)
     outdir = pwd;
 end
 if ~exist(outdir, 'dir')
@@ -72,7 +75,22 @@ try
             pad = max(0.05, 0.1 * max(1, abs(data)));
             ylim(ax, data + [-pad, pad]);
         else
-            plot(ax, meta, data, 'LineWidth', 1.5);
+            lineStyle = '-';
+            lineColor = [0, 0, 0];
+            if ~isempty(ptest) && isfield(ptest, name)
+                if ptest.(name).p_value >= 0.05
+                    lineStyle = '--';
+                    lineColor = [0.5, 0.5, 0.5];
+                end
+
+                % plot confidence interval
+                hold(ax, 'on');
+                fill(ax, [meta; flipud(meta)], [ptest.(name).ci_lower; flipud(ptest.(name).ci_upper)], ...
+                    [0.7 0.7 0.7], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
+                hold(ax, 'off');
+            end
+
+            plot(ax, meta, data, 'LineWidth', 1.5, 'LineStyle', lineStyle, 'Color', lineColor);
             xlabel(ax, 'lag (s)');
             ylabel(ax, 'weight');
         end
