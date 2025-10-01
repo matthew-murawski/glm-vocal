@@ -1,11 +1,17 @@
-function summary = qc_session_summary(Xd, wmap, rate, cvinfo, kernels, outdir)
+function summary = qc_session_summary(Xd, wmap, rate, cvinfo, kernels, ptest, outdir)
 % section setup
 % generate summary artifacts (figure, text, json) that capture key qc information for a fitted session.
-if nargin < 6 || isempty(outdir)
+if nargin < 5 || isempty(kernels)
+    kernels = struct();
+end
+if nargin < 6 || isempty(ptest)
+    ptest = struct();
+end
+if nargin < 7 || isempty(outdir)
     outdir = pwd;
 end
-if nargin < 5
-    kernels = struct();
+if isstring(outdir) || ischar(outdir)
+    outdir = char(outdir);
 end
 if ~exist(outdir, 'dir')
     mkdir(outdir);
@@ -49,6 +55,8 @@ if isfield(kernels, 'states') && isstruct(kernels.states)
         summary.stats.state_coeffs.spon = kernels.states.spon;
     end
 end
+
+summary.stats.permutation = summarize_permutation_tests(ptest);
 
 % section statistical test
 % perform a wald test for the difference between conversational and spontaneous state coefficients.
@@ -154,6 +162,20 @@ try
             textLines{end+1} = sprintf('  z=%.2f, p=%.3f', summary.stats.state_coeffs.z_score, summary.stats.state_coeffs.p_value); %#ok<AGROW>
         end
     end
+    if summary.stats.permutation.n_kernels > 0
+        textLines{end+1} = ''; %#ok<AGROW>
+        textLines{end+1} = sprintf('Permutation (p<%.2f):', summary.stats.permutation.threshold); %#ok<AGROW>
+        textLines{end+1} = sprintf('  significant: %d / %d', summary.stats.permutation.n_significant, summary.stats.permutation.n_kernels); %#ok<AGROW>
+        permNames = fieldnames(summary.stats.permutation.kernels);
+        for ii = 1:min(4, numel(permNames))
+            fname = permNames{ii};
+            entry = summary.stats.permutation.kernels.(fname);
+            textLines{end+1} = sprintf('  %s: p=%.3f', fname, entry.p_value); %#ok<AGROW>
+        end
+        if numel(permNames) > 4
+            textLines{end+1} = sprintf('  (+%d more)', numel(permNames) - 4); %#ok<AGROW>
+        end
+    end
     text(0, 1, strjoin(textLines, newline), 'VerticalAlignment', 'top');
 
     figPath = fullfile(outdir, 'qc_summary.png');
@@ -198,6 +220,16 @@ if fid ~= -1
             fprintf(fid, '  p-value: %.3f%s', summary.stats.state_coeffs.p_value, nl);
         end
     end
+    if summary.stats.permutation.n_kernels > 0
+        fprintf(fid, '%sPermutation Tests (threshold %.2f):%s', nl, summary.stats.permutation.threshold, nl);
+        fprintf(fid, '  significant: %d / %d%s', summary.stats.permutation.n_significant, summary.stats.permutation.n_kernels, nl);
+        permNames = fieldnames(summary.stats.permutation.kernels);
+        for ii = 1:numel(permNames)
+            fname = permNames{ii};
+            entry = summary.stats.permutation.kernels.(fname);
+            fprintf(fid, '  %s: p=%.3f%s', fname, entry.p_value, nl);
+        end
+    end
     fclose(fid);
 else
     warning('qc_session_summary:FileWriteFailed', 'unable to write text summary to %s', textPath);
@@ -220,6 +252,44 @@ catch err
     warning('qc_session_summary:JsonEncodeFailed', 'json encoding failed: %s', err.message);
 end
 summary.paths.json = jsonPath;
+end
+
+function permSummary = summarize_permutation_tests(ptest)
+% section permutation helper
+% convert raw permutation test outputs into a compact summary that highlights significant kernels.
+permSummary = struct('threshold', 0.05, 'n_kernels', 0, 'n_significant', 0, 'kernels', struct());
+
+if ~isstruct(ptest) || isempty(fieldnames(ptest))
+    return
+end
+
+fields = fieldnames(ptest);
+for ii = 1:numel(fields)
+    fname = fields{ii};
+    entry = ptest.(fname);
+    if ~isstruct(entry) || ~isfield(entry, 'p_value')
+        continue
+    end
+
+    pVal = entry.p_value;
+    if ~isscalar(pVal) || ~isfinite(pVal)
+        continue
+    end
+
+    permSummary.n_kernels = permSummary.n_kernels + 1;
+    isSig = pVal < permSummary.threshold;
+
+    kernelSummary = struct('p_value', pVal, 'significant', isSig);
+    if isfield(entry, 'ci_lower') && isfield(entry, 'ci_upper')
+        kernelSummary.ci_lower = entry.ci_lower(:)';
+        kernelSummary.ci_upper = entry.ci_upper(:)';
+    end
+    permSummary.kernels.(fname) = kernelSummary;
+
+    if isSig
+        permSummary.n_significant = permSummary.n_significant + 1;
+    end
+end
 end
 
 function merged = merge_event_counts(template, counts)

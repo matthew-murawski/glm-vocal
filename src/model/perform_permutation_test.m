@@ -8,7 +8,7 @@ function ptest = perform_permutation_test(kernels, Xd, D, best_lambda, cfg, stim
 
 % section initialize
 % set the number of permutations and prepare storage for null distribution statistics.
-n_perms = 1000;
+n_perms = 250;
 kernel_fields = fieldnames(kernels);
 null_peaks = struct();
 null_kernels = struct();

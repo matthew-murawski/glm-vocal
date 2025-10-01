@@ -3,9 +3,17 @@ function plot_kernels(kernels, ptest, outdir)
 % render kernel weight traces and scalar summaries to disk for quick qc.
 if nargin < 2
     ptest = [];
-end
-if nargin < 3 || isempty(outdir)
     outdir = pwd;
+elseif nargin < 3
+    if ischar(ptest) || isstring(ptest)
+        outdir = char(ptest);
+        ptest = [];
+    else
+        outdir = pwd;
+    end
+end
+if nargin == 3 && (ischar(outdir) || isstring(outdir))
+    outdir = char(outdir);
 end
 if ~exist(outdir, 'dir')
     mkdir(outdir);
@@ -77,20 +85,28 @@ try
         else
             lineStyle = '-';
             lineColor = [0, 0, 0];
+            ciLower = [];
+            ciUpper = [];
             if ~isempty(ptest) && isfield(ptest, name)
                 if ptest.(name).p_value >= 0.05
                     lineStyle = '--';
                     lineColor = [0.5, 0.5, 0.5];
                 end
 
-                % plot confidence interval
-                hold(ax, 'on');
-                fill(ax, [meta; flipud(meta)], [ptest.(name).ci_lower; flipud(ptest.(name).ci_upper)], ...
-                    [0.7 0.7 0.7], 'FaceAlpha', 0.5, 'EdgeColor', 'none');
-                hold(ax, 'off');
+                ciLower = ptest.(name).ci_lower(:);
+                ciUpper = ptest.(name).ci_upper(:);
             end
 
+            hold(ax, 'on');
+            if ~isempty(ciLower) && ~isempty(ciUpper)
+                fill(ax, [meta; flipud(meta)], [ciLower; flipud(ciUpper)], ...
+                    [0.7 0.7 0.7], 'FaceAlpha', 0.35, 'EdgeColor', 'none');
+            end
+            if ~isempty(meta)
+                plot(ax, meta, zeros(size(meta)), ':', 'Color', [0.6, 0.6, 0.6], 'LineWidth', 1);
+            end
             plot(ax, meta, data, 'LineWidth', 1.5, 'LineStyle', lineStyle, 'Color', lineColor);
+            hold(ax, 'off');
             xlabel(ax, 'lag (s)');
             ylabel(ax, 'weight');
         end
