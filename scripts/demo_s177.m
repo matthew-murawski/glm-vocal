@@ -13,8 +13,14 @@ producedPath = fullfile(dataDir, 'M93A_S177_produced.txt');
 timestamp = datestr(now, 'yyyymmdd_HHMMSS');
 outdir = fullfile(rootDir, 'results', ['S177_' timestamp]);
 
+cfg = jsondecode(fileread(cfgPath));
+if ~isfield(cfg, 'exclude_predictors') || isempty(cfg.exclude_predictors)
+    cfg.exclude_predictors = {'states', 'spike_history'};
+end
+cfg.produced_split_mode = 'call_type';
+
 fprintf('Running S177 → output: %s\n', outdir);
-run_fit_single_neuron(cfgPath, spikePath, heardPath, producedPath, outdir);
+run_fit_single_neuron(cfg, spikePath, heardPath, producedPath, outdir);
 
 fprintf('Finished. Inspect %s for artifacts.\n', outdir);
 end

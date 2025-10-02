@@ -18,17 +18,21 @@ if isfield(colmap, 'heard_any') && isfield(colmap.heard_any, 'cols')
 end
 
 % section produced kernels
-% slice each produced-call context kernel (symmetric windows) while keeping backward compatibility with the aggregate field.
-producedFields = {'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'};
+% slice each produced-call kernel using the field order stored in the column map when available.
+producedFields = {};
+if isfield(colmap, 'produced_fields') && ~isempty(colmap.produced_fields)
+    producedFields = cellstr(colmap.produced_fields(:));
+else
+    candidates = fieldnames(colmap);
+    producedFields = candidates(startsWith(candidates, 'produced_'));
+    producedFields = producedFields(~strcmp(producedFields, 'produced_any'));
+end
+
 for ii = 1:numel(producedFields)
     fname = producedFields{ii};
     if isfield(colmap, fname) && isfield(colmap.(fname), 'cols')
         kernels.(fname) = buildKernelBlock(w, colmap.(fname));
     end
-end
-
-if isfield(colmap, 'produced_any') && isfield(colmap.produced_any, 'cols')
-    kernels.produced_any = buildKernelBlock(w, colmap.produced_any);
 end
 
 % section spike-history kernel

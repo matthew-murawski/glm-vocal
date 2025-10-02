@@ -20,7 +20,12 @@ end
 [rootDir, srcPath] = resolve_paths();
 addpath(srcPath);
 
-cfgFile = resolve_file(cfgPath, fullfile(rootDir, 'config', 'defaults.json'));
+if isstruct(cfgPath)
+    cfg = cfgPath;
+else
+    cfgFile = resolve_file(cfgPath, fullfile(rootDir, 'config', 'defaults.json'));
+    cfg = jsondecode(fileread(cfgFile));
+end
 spikeFile = resolve_file(spikePath);
 heardFile = resolve_file(heardPath, '', true);
 producedFile = resolve_file(producedPath, '', true);
@@ -32,7 +37,12 @@ ensure_dir(outdir);
 plotDir = fullfile(outdir, 'plots');
 ensure_dir(plotDir);
 
-cfg = jsondecode(fileread(cfgFile));
+if ~isfield(cfg, 'exclude_predictors') || isempty(cfg.exclude_predictors)
+    cfg.exclude_predictors = {};
+end
+
+cfg.produced_split_mode = sanitize_produced_split_mode(cfg);
+cfg.twitter_bout_window_s = sanitize_twitter_window(cfg);
 sp = load_spikes(spikeFile);
 
 heardEvents = repmat(empty_event_record(), 0, 1);
@@ -45,9 +55,19 @@ if ~isempty(producedFile)
 end
 events = [heardEvents; producedEvents];
 
+events = consolidate_twitter_bouts(events, cfg.twitter_bout_window_s);
+if ~isempty(events)
+    kindCells = cellfun(@char, {events.kind}, 'UniformOutput', false);
+    heardEvents = events(strcmp(kindCells, 'perceived'));
+    producedEvents = events(strcmp(kindCells, 'produced'));
+else
+    heardEvents = repmat(empty_event_record(), 0, 1);
+    producedEvents = heardEvents;
+end
+
 stim = build_timebase(events, sp, cfg.dt);
 sps = bin_spikes(sp.spike_times, stim);
-streams = build_streams(events, stim);
+streams = build_streams(events, stim, cfg);
 states = compute_states(events, stim, cfg.state);
 
 Xd = assemble_design_matrix(streams, states, sps, cfg, stim);
@@ -126,11 +146,8 @@ end
 
 function counts = summarize_event_counts(streams)
 % section event counts
-% collect heard and produced-context event counts from the stream struct when available.
-counts = struct('heard', NaN, ...
-    'produced_spontaneous', NaN, ...
-    'produced_after_heard', NaN, ...
-    'produced_after_produced', NaN);
+% collect heard counts plus produced-call counts for each configured category.
+counts = struct('heard', NaN, 'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
 
 if ~isstruct(streams)
     return
@@ -139,15 +156,62 @@ end
 if isfield(streams, 'heard_any')
     counts.heard = sum(double(streams.heard_any(:)) > 0);
 end
-if isfield(streams, 'produced_spontaneous')
-    counts.produced_spontaneous = sum(double(streams.produced_spontaneous(:)) > 0);
+
+if isfield(streams, 'produced_any')
+    counts.produced_any = sum(double(streams.produced_any(:)) > 0);
 end
-if isfield(streams, 'produced_after_heard')
-    counts.produced_after_heard = sum(double(streams.produced_after_heard(:)) > 0);
+
+producedFields = {};
+if isfield(streams, 'produced_fields') && ~isempty(streams.produced_fields)
+    producedFields = cellstr(streams.produced_fields(:));
+else
+    defaults = {'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'};
+    producedFields = defaults(isfield(streams, defaults));
 end
-if isfield(streams, 'produced_after_produced')
-    counts.produced_after_produced = sum(double(streams.produced_after_produced(:)) > 0);
+
+counts.produced_fields = producedFields;
+for ii = 1:numel(producedFields)
+    fieldName = producedFields{ii};
+    if isfield(streams, fieldName)
+        counts.produced.(fieldName) = sum(double(streams.(fieldName)(:)) > 0);
+    else
+        counts.produced.(fieldName) = NaN;
+    end
 end
+end
+
+function mode = sanitize_produced_split_mode(cfg)
+if ~isstruct(cfg) || ~isfield(cfg, 'produced_split_mode') || isempty(cfg.produced_split_mode)
+    mode = 'context';
+    return
+end
+
+raw = string(cfg.produced_split_mode);
+if numel(raw) ~= 1
+    error('run_fit_single_neuron:InvalidSplitMode', 'produced_split_mode must be a scalar string.');
+end
+
+modeLower = lower(strtrim(raw));
+validModes = ["context", "call_type"];
+if ~any(modeLower == validModes)
+    error('run_fit_single_neuron:InvalidSplitMode', 'produced_split_mode must be ''context'' or ''call_type''.');
+end
+
+mode = char(modeLower);
+end
+
+function window = sanitize_twitter_window(cfg)
+defaultWindow = 1.5;
+if ~isstruct(cfg) || ~isfield(cfg, 'twitter_bout_window_s') || isempty(cfg.twitter_bout_window_s)
+    window = defaultWindow;
+    return
+end
+
+raw = double(cfg.twitter_bout_window_s);
+if ~isscalar(raw) || ~isfinite(raw) || raw <= 0
+    error('run_fit_single_neuron:InvalidTwitterWindow', 'twitter_bout_window_s must be a positive finite scalar.');
+end
+window = raw;
 end
 
 function rec = empty_event_record()

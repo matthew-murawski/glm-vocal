@@ -1,6 +1,6 @@
 function Xd = assemble_design_matrix(streams, states, sps, cfg, stim)
 % section input validation
-% we confirm timelines, streams, and configuration structs expose the fields needed to build kernel blocks.
+% confirm the stimulus timeline, streams, and configuration expose the required fields before building kernels.
 mustHaveField(stim, 't');
 mustHaveField(stim, 'dt');
 t = stim.t(:);
@@ -20,16 +20,22 @@ if numel(sps) ~= nT
 end
 
 mustHaveField(streams, 'heard_any');
-mustHaveField(streams, 'produced_spontaneous');
-mustHaveField(streams, 'produced_after_heard');
-mustHaveField(streams, 'produced_after_produced');
-
 heard = double(streams.heard_any(:));
-producedSpont = double(streams.produced_spontaneous(:));
-producedAfterHeard = double(streams.produced_after_heard(:));
-producedAfterProduced = double(streams.produced_after_produced(:));
-if numel(heard) ~= nT || numel(producedSpont) ~= nT || numel(producedAfterHeard) ~= nT || numel(producedAfterProduced) ~= nT
-    error('assemble_design_matrix:StreamLength', 'stream lengths must match the stimulus grid.');
+if numel(heard) ~= nT
+    error('assemble_design_matrix:StreamLength', 'heard_any stream must match the stimulus grid.');
+end
+
+producedFields = fetch_produced_fields(streams);
+producedStreams = struct();
+for ii = 1:numel(producedFields)
+    fieldName = producedFields{ii};
+    if ~isfield(streams, fieldName)
+        error('assemble_design_matrix:MissingStream', 'streams missing produced field %s.', fieldName);
+    end
+    producedStreams.(fieldName) = double(streams.(fieldName)(:));
+    if numel(producedStreams.(fieldName)) ~= nT
+        error('assemble_design_matrix:StreamLength', 'stream %s must match the stimulus grid.', fieldName);
+    end
 end
 
 mustHaveField(states, 'convo');
@@ -55,78 +61,101 @@ if isfield(stim, 'mask') && isstruct(stim.mask) && isfield(stim.mask, 'good') &&
     goodMask = logical(maskVec);
 end
 
-% section block construction
-% we build each regressor block using the feature helpers so we can concatenate them into the design matrix.
-interceptCol = sparse((1:nT)', 1, 1, nT, 1);
-[heardBlk, heardInfo] = build_basis_block(heard, stim, heardWindow, heardBasisCfg, 'causal');
-[producedSpontBlk, producedSpontInfo] = build_basis_block(producedSpont, stim, producedWindow, producedBasisCfg, 'symmetric');
-[producedAfterHeardBlk, producedAfterHeardInfo] = build_basis_block(producedAfterHeard, stim, producedWindow, producedBasisCfg, 'symmetric');
-[producedAfterProducedBlk, producedAfterProducedInfo] = build_basis_block(producedAfterProduced, stim, producedWindow, producedBasisCfg, 'symmetric');
-stateBlk = sparse(double([stateConvo, stateSpon]));
-[historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
+excludeList = determine_exclusions(cfg);
+skipBlock = @(name) any(strcmpi(name, excludeList));
 
-X = [interceptCol, heardBlk, producedSpontBlk, producedAfterHeardBlk, producedAfterProducedBlk, stateBlk, historyBlk];
+% section block construction
+blockCells = {};
+colmap = struct();
+colStart = 1;
+
+if ~skipBlock('intercept')
+    interceptCol = sparse((1:nT)', 1, 1, nT, 1);
+    blockCells{end+1} = interceptCol; %#ok<AGROW>
+    colmap.intercept = struct('cols', colStart, 'name', 'intercept');
+    colStart = colStart + 1;
+end
+
+if ~skipBlock('heard_any')
+    [heardBlk, heardInfo] = build_basis_block(heard, stim, heardWindow, heardBasisCfg, 'causal');
+    blockCells{end+1} = heardBlk; %#ok<AGROW>
+    nHeard = size(heardBlk, 2);
+    heardCols = colStart:(colStart + nHeard - 1);
+    colmap.heard_any = struct('cols', heardCols, 'info', heardInfo);
+    colStart = colStart + nHeard;
+end
+
+producedFieldsIncluded = {};
+for ii = 1:numel(producedFields)
+    fieldName = producedFields{ii};
+    if skipBlock(fieldName)
+        continue
+    end
+    z = producedStreams.(fieldName);
+    [blk, info] = build_basis_block(z, stim, producedWindow, producedBasisCfg, 'symmetric');
+    blockCells{end+1} = blk; %#ok<AGROW>
+    nCols = size(blk, 2);
+    cols = colStart:(colStart + nCols - 1);
+    colmap.(fieldName) = struct('cols', cols, 'info', info);
+    producedFieldsIncluded{end+1} = fieldName; %#ok<AGROW>
+    colStart = colStart + nCols;
+end
+if ~isempty(producedFieldsIncluded)
+    colmap.produced_fields = producedFieldsIncluded;
+end
+
+if ~skipBlock('states')
+    stateBlk = sparse(double([stateConvo, stateSpon]));
+    blockCells{end+1} = stateBlk; %#ok<AGROW>
+    stateCols = colStart:(colStart + 1);
+    stateMap = struct();
+    stateMap.cols = stateCols;
+    stateMap.names = {'convo', 'spon'};
+    stateMap.convo = stateCols(1);
+    stateMap.spon = stateCols(2);
+    colmap.states = stateMap;
+    colStart = colStart + numel(stateCols);
+end
+
+if ~skipBlock('spike_history')
+    [historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
+    blockCells{end+1} = historyBlk; %#ok<AGROW>
+    nHist = size(historyBlk, 2);
+    historyCols = colStart:(colStart + nHist - 1);
+    colmap.spike_history = struct('cols', historyCols, 'info', historyInfo);
+    colStart = colStart + nHist;
+end
+
+if isempty(blockCells)
+    X = sparse(nT, 0);
+else
+    X = cat(2, blockCells{:});
+end
 
 % section mask application
-% we drop rows marked bad by the stimulus mask so downstream fitting only sees valid bins.
 y = sps;
 if any(~goodMask)
     X = X(goodMask, :);
     y = y(goodMask);
 end
 
-% section column mapping
-% we record the column indices associated with each block along with the helper metadata for downstream unpacking.
-colStart = 1;
-colmap = struct();
-
-colmap.intercept = struct('cols', colStart, 'name', 'intercept');
-colStart = colStart + 1;
-
-nHeard = size(heardBlk, 2);
-heardCols = colStart:(colStart + nHeard - 1);
-colmap.heard_any = struct('cols', heardCols, 'info', heardInfo);
-colStart = colStart + nHeard;
-
-nProducedSpont = size(producedSpontBlk, 2);
-producedSpontCols = colStart:(colStart + nProducedSpont - 1);
-colmap.produced_spontaneous = struct('cols', producedSpontCols, 'info', producedSpontInfo);
-colStart = colStart + nProducedSpont;
-
-nProducedAfterHeard = size(producedAfterHeardBlk, 2);
-producedAfterHeardCols = colStart:(colStart + nProducedAfterHeard - 1);
-colmap.produced_after_heard = struct('cols', producedAfterHeardCols, 'info', producedAfterHeardInfo);
-colStart = colStart + nProducedAfterHeard;
-
-nProducedAfterProduced = size(producedAfterProducedBlk, 2);
-producedAfterProducedCols = colStart:(colStart + nProducedAfterProduced - 1);
-colmap.produced_after_produced = struct('cols', producedAfterProducedCols, 'info', producedAfterProducedInfo);
-colStart = colStart + nProducedAfterProduced;
-
-stateCols = colStart:(colStart + 1);
-stateMap = struct();
-stateMap.cols = stateCols;
-stateMap.names = {'convo', 'spon'};
-stateMap.convo = stateCols(1);
-stateMap.spon = stateCols(2);
-colmap.states = stateMap;
-colStart = colStart + numel(stateCols);
-
-nHist = size(historyBlk, 2);
-historyCols = colStart:(colStart + nHist - 1);
-colmap.spike_history = struct('cols', historyCols, 'info', historyInfo);
-
 % section outputs
-% we package the sparse design matrix, binned spikes, and column mapping for downstream fitting and analysis.
 Xd = struct();
 Xd.X = X;
 Xd.y = y;
 Xd.colmap = colmap;
 end
 
+function producedFields = fetch_produced_fields(streams)
+if isstruct(streams) && isfield(streams, 'produced_fields') && ~isempty(streams.produced_fields)
+    producedFields = cellstr(streams.produced_fields(:));
+else
+    defaults = {'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'};
+    producedFields = defaults(isfield(streams, defaults));
+end
+end
+
 function window = fetchWindow(cfg, fieldName)
-% section window helper
-% this helper extracts a two-element window vector from the config struct or raises an informative error.
 if ~isstruct(cfg) || ~isfield(cfg, fieldName)
     error('assemble_design_matrix:MissingWindow', 'config missing field %s.', fieldName);
 end
@@ -137,8 +166,6 @@ end
 end
 
 function basisCfg = fetchBasis(cfg, fieldName)
-% section basis helper
-% pull a basis configuration struct or fall back to the default raised-cosine family.
 if ~isstruct(cfg) || ~isfield(cfg, fieldName)
     basisCfg = struct('kind', 'raised_cosine');
     return
@@ -154,9 +181,43 @@ end
 end
 
 function mustHaveField(s, fname)
-% section struct guard
-% small helper to ensure required struct fields exist before continuing computations.
 if ~isstruct(s) || ~isfield(s, fname)
     error('assemble_design_matrix:MissingField', 'struct is missing required field %s.', fname);
+end
+end
+
+function excludeList = determine_exclusions(cfg)
+excludeList = {};
+if ~isstruct(cfg) || ~isfield(cfg, 'exclude_predictors') || isempty(cfg.exclude_predictors)
+    return
+end
+
+raw = cfg.exclude_predictors;
+if ischar(raw)
+    raw = {raw};
+elseif isstring(raw)
+    raw = cellstr(raw(:));
+elseif iscell(raw)
+    tmp = cellfun(@(x) convertToChar(x), raw(:), 'UniformOutput', false);
+    raw = tmp;
+else
+    error('assemble_design_matrix:ExcludeType', 'exclude_predictors must be a char vector, string, or cell array of strings.');
+end
+
+raw = raw(:);
+excludeList = cellfun(@(x) lower(strtrim(x)), raw, 'UniformOutput', false);
+excludeList = excludeList(~cellfun('isempty', excludeList));
+if ~isempty(excludeList)
+    excludeList = unique(excludeList, 'stable');
+end
+end
+
+function out = convertToChar(val)
+if isstring(val)
+    out = char(val);
+elseif ischar(val)
+    out = val;
+else
+    error('assemble_design_matrix:ExcludeType', 'exclude_predictors entries must be strings.');
 end
 end

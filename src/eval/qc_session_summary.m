@@ -38,14 +38,7 @@ if isfield(rate, 'metrics')
     summary.stats.metrics = rate.metrics;
 end
 
-eventCounts = struct('heard', NaN, ...
-    'produced_spontaneous', NaN, ...
-    'produced_after_heard', NaN, ...
-    'produced_after_produced', NaN);
-if isfield(rate, 'event_counts') && isstruct(rate.event_counts)
-    eventCounts = merge_event_counts(eventCounts, rate.event_counts);
-end
-summary.stats.event_counts = eventCounts;
+summary.stats.event_counts = normalize_event_counts(rate);
 if isfield(kernels, 'states') && isstruct(kernels.states)
     summary.stats.state_coeffs = struct();
     if isfield(kernels.states, 'convo')
@@ -141,9 +134,20 @@ try
     textLines{end+1} = ''; %#ok<AGROW>
     textLines{end+1} = 'Event Counts:'; %#ok<AGROW>
     textLines{end+1} = format_count_line('heard', summary.stats.event_counts.heard); %#ok<AGROW>
-    textLines{end+1} = format_count_line('produced spont', summary.stats.event_counts.produced_spontaneous); %#ok<AGROW>
-    textLines{end+1} = format_count_line('produced after heard', summary.stats.event_counts.produced_after_heard); %#ok<AGROW>
-    textLines{end+1} = format_count_line('produced after produced', summary.stats.event_counts.produced_after_produced); %#ok<AGROW>
+    if ~isnan(summary.stats.event_counts.produced_any)
+        textLines{end+1} = format_count_line('produced any', summary.stats.event_counts.produced_any); %#ok<AGROW>
+    end
+    producedFields = summary.stats.event_counts.produced_fields;
+    if isempty(producedFields)
+        textLines{end+1} = '  produced: n/a'; %#ok<AGROW>
+    else
+        for ii = 1:numel(producedFields)
+            fname = producedFields{ii};
+            label = format_produced_label(fname);
+            value = summary.stats.event_counts.produced.(fname);
+            textLines{end+1} = format_count_line(label, value); %#ok<AGROW>
+        end
+    end
     if ~isnan(summary.stats.best_lambda)
         textLines{end+1} = sprintf('best lambda: %.3g', summary.stats.best_lambda); %#ok<AGROW>
         textLines{end+1} = sprintf('mean nll: %.3f', summary.stats.best_lambda_mean_nll); %#ok<AGROW>
@@ -203,9 +207,19 @@ if fid ~= -1
     end
     fprintf(fid, '%sEvent Counts:%s', nl, nl);
     fprintf(fid, '%s%s', format_count_text('heard', summary.stats.event_counts.heard), nl);
-    fprintf(fid, '%s%s', format_count_text('produced spont', summary.stats.event_counts.produced_spontaneous), nl);
-    fprintf(fid, '%s%s', format_count_text('produced after heard', summary.stats.event_counts.produced_after_heard), nl);
-    fprintf(fid, '%s%s', format_count_text('produced after produced', summary.stats.event_counts.produced_after_produced), nl);
+    if ~isnan(summary.stats.event_counts.produced_any)
+        fprintf(fid, '%s%s', format_count_text('produced any', summary.stats.event_counts.produced_any), nl);
+    end
+    producedFields = summary.stats.event_counts.produced_fields;
+    if isempty(producedFields)
+        fprintf(fid, '  produced: n/a%s', nl);
+    else
+        for ii = 1:numel(producedFields)
+            fname = producedFields{ii};
+            label = format_produced_label(fname);
+            fprintf(fid, '%s%s', format_count_text(label, summary.stats.event_counts.produced.(fname)), nl);
+        end
+    end
     if isfield(summary.stats, 'state_coeffs')
         fprintf(fid, '%sState Coefficients:%s', nl, nl);
         if isfield(summary.stats.state_coeffs, 'convo')
@@ -292,22 +306,6 @@ for ii = 1:numel(fields)
 end
 end
 
-function merged = merge_event_counts(template, counts)
-% section merge helper
-% copy available event counts onto the template while preserving missing entries as nan.
-merged = template;
-fields = fieldnames(template);
-for ii = 1:numel(fields)
-    fname = fields{ii};
-    if isfield(counts, fname)
-        val = double(counts.(fname));
-        if isscalar(val) && isfinite(val)
-            merged.(fname) = val;
-        end
-    end
-end
-end
-
 function line = format_count_line(label, value)
 % section figure text helper
 % format event counts for inclusion in the summary figure.
@@ -326,4 +324,51 @@ if isnan(value)
 else
     textLine = sprintf('  %s: %d', label, round(value));
 end
+end
+
+function counts = normalize_event_counts(rate)
+counts = struct('heard', NaN, 'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
+if ~isstruct(rate) || ~isfield(rate, 'event_counts') || ~isstruct(rate.event_counts)
+    return
+end
+
+raw = rate.event_counts;
+if isfield(raw, 'heard') && isscalar(raw.heard)
+    counts.heard = double(raw.heard);
+end
+if isfield(raw, 'produced_any') && isscalar(raw.produced_any)
+    counts.produced_any = double(raw.produced_any);
+end
+
+if isfield(raw, 'produced_fields') && ~isempty(raw.produced_fields)
+    fields = cellstr(raw.produced_fields(:));
+    counts.produced_fields = fields;
+    for ii = 1:numel(fields)
+        fname = fields{ii};
+        if isfield(raw, 'produced') && isfield(raw.produced, fname)
+            counts.produced.(fname) = double(raw.produced.(fname));
+        else
+            counts.produced.(fname) = NaN;
+        end
+    end
+else
+    legacy = {'produced_spontaneous', 'produced_after_heard', 'produced_after_produced'};
+    available = legacy(isfield(raw, legacy));
+    counts.produced_fields = available;
+    for ii = 1:numel(available)
+        fname = available{ii};
+        counts.produced.(fname) = double(raw.(fname));
+    end
+    if isnan(counts.produced_any) && ~isempty(available)
+        vals = cellfun(@(f) counts.produced.(f), available);
+        if all(isfinite(vals))
+            counts.produced_any = sum(vals);
+        end
+    end
+end
+end
+
+function label = format_produced_label(fieldName)
+label = strrep(fieldName, 'produced_', 'produced ');
+label = strrep(label, '_', ' ');
 end
