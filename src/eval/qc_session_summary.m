@@ -134,6 +134,18 @@ try
     textLines{end+1} = ''; %#ok<AGROW>
     textLines{end+1} = 'Event Counts:'; %#ok<AGROW>
     textLines{end+1} = format_count_line('heard', summary.stats.event_counts.heard); %#ok<AGROW>
+    heardFields = summary.stats.event_counts.heard_fields;
+    if ~isempty(heardFields)
+        for ii = 1:numel(heardFields)
+            fname = heardFields{ii};
+            label = format_heard_label(fname);
+            value = NaN;
+            if isfield(summary.stats.event_counts.heard_by_field, fname)
+                value = summary.stats.event_counts.heard_by_field.(fname);
+            end
+            textLines{end+1} = format_count_line(label, value); %#ok<AGROW>
+        end
+    end
     if ~isnan(summary.stats.event_counts.produced_any)
         textLines{end+1} = format_count_line('produced any', summary.stats.event_counts.produced_any); %#ok<AGROW>
     end
@@ -207,6 +219,18 @@ if fid ~= -1
     end
     fprintf(fid, '%sEvent Counts:%s', nl, nl);
     fprintf(fid, '%s%s', format_count_text('heard', summary.stats.event_counts.heard), nl);
+    heardFields = summary.stats.event_counts.heard_fields;
+    if ~isempty(heardFields)
+        for ii = 1:numel(heardFields)
+            fname = heardFields{ii};
+            label = format_heard_label(fname);
+            value = NaN;
+            if isfield(summary.stats.event_counts.heard_by_field, fname)
+                value = summary.stats.event_counts.heard_by_field.(fname);
+            end
+            fprintf(fid, '%s%s', format_count_text(label, value), nl);
+        end
+    end
     if ~isnan(summary.stats.event_counts.produced_any)
         fprintf(fid, '%s%s', format_count_text('produced any', summary.stats.event_counts.produced_any), nl);
     end
@@ -327,7 +351,8 @@ end
 end
 
 function counts = normalize_event_counts(rate)
-counts = struct('heard', NaN, 'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
+counts = struct('heard', NaN, 'heard_fields', {{}}, 'heard_by_field', struct(), ...
+    'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
 if ~isstruct(rate) || ~isfield(rate, 'event_counts') || ~isstruct(rate.event_counts)
     return
 end
@@ -335,6 +360,39 @@ end
 raw = rate.event_counts;
 if isfield(raw, 'heard') && isscalar(raw.heard)
     counts.heard = double(raw.heard);
+end
+if isfield(raw, 'heard_fields') && ~isempty(raw.heard_fields)
+    fields = cellstr(raw.heard_fields(:));
+    counts.heard_fields = fields;
+    detail = struct();
+    for ii = 1:numel(fields)
+        fname = fields{ii};
+        value = NaN;
+        if isfield(raw, 'heard_by_field') && isstruct(raw.heard_by_field) && isfield(raw.heard_by_field, fname)
+            value = double(raw.heard_by_field.(fname));
+        elseif isfield(raw, fname)
+            value = double(raw.(fname));
+        end
+        detail.(fname) = value;
+    end
+    counts.heard_by_field = detail;
+elseif isfield(raw, 'heard_addressed') || isfield(raw, 'heard_overheard')
+    legacyFields = {'heard_addressed', 'heard_overheard'};
+    available = legacyFields(isfield(raw, legacyFields));
+    counts.heard_fields = available;
+    detail = struct();
+    for ii = 1:numel(available)
+        fname = available{ii};
+        detail.(fname) = double(raw.(fname));
+    end
+    counts.heard_by_field = detail;
+    if isnan(counts.heard)
+        vals = struct2cell(detail);
+        vals = cellfun(@double, vals);
+        if all(isfinite(vals))
+            counts.heard = sum(vals);
+        end
+    end
 end
 if isfield(raw, 'produced_any') && isscalar(raw.produced_any)
     counts.produced_any = double(raw.produced_any);
@@ -370,5 +428,10 @@ end
 
 function label = format_produced_label(fieldName)
 label = strrep(fieldName, 'produced_', 'produced ');
+label = strrep(label, '_', ' ');
+end
+
+function label = format_heard_label(fieldName)
+label = strrep(fieldName, 'heard_', 'heard ');
 label = strrep(label, '_', ' ');
 end

@@ -9,12 +9,14 @@ function colmap = makeColmap()
 % craft a representative column map to drive the penalty assembly tests.
 colmap = struct();
 colmap.intercept = struct('cols', 1, 'name', 'intercept');
-colmap.heard_any = struct('cols', 2:5, 'info', struct());
-colmap.produced_spontaneous = struct('cols', 6:9, 'info', struct());
-colmap.produced_after_heard = struct('cols', 10:13, 'info', struct());
-colmap.produced_after_produced = struct('cols', 14:17, 'info', struct());
-colmap.states = struct('cols', 18:19, 'names', {{'convo', 'spon'}}, 'convo', 18, 'spon', 19);
-colmap.spike_history = struct('cols', 20:23, 'info', struct());
+colmap.heard_fields = {'heard_addressed', 'heard_overheard'};
+colmap.heard_addressed = struct('cols', 2:5, 'info', struct());
+colmap.heard_overheard = struct('cols', 6:9, 'info', struct());
+colmap.produced_spontaneous = struct('cols', 10:13, 'info', struct());
+colmap.produced_after_heard = struct('cols', 14:17, 'info', struct());
+colmap.produced_after_produced = struct('cols', 18:21, 'info', struct());
+colmap.states = struct('cols', 22:23, 'names', {{'convo', 'spon'}}, 'convo', 22, 'spon', 23);
+colmap.spike_history = struct('cols', 24:27, 'info', struct());
 end
 
 function testSecondDifferenceStencils(testCase)
@@ -23,13 +25,17 @@ function testSecondDifferenceStencils(testCase)
 colmap = makeColmap();
 [D, Dmap] = smoothness_penalty(colmap, struct());
 
-testCase.verifyEqual(size(D), [10, 23]);
-heardRows = Dmap.heard_any.rows;
+testCase.verifyEqual(size(D), [12, 27]);
+heardRows = Dmap.heard_addressed.rows;
 expectedHeard = [1 -2 1 0; 0 1 -2 1];
-fullHeard = full(D(heardRows, colmap.heard_any.cols));
+fullHeard = full(D(heardRows, colmap.heard_addressed.cols));
 testCase.verifyEqual(fullHeard, expectedHeard);
-testCase.verifyEqual(full(D(:, colmap.intercept.cols)), zeros(10, 1));
-testCase.verifyEqual(full(D(:, colmap.states.cols)), zeros(10, 2));
+overheardRows = Dmap.heard_overheard.rows;
+fullOverheard = full(D(overheardRows, colmap.heard_overheard.cols));
+testCase.verifyEqual(fullHeard, expectedHeard);
+testCase.verifyEqual(fullOverheard, expectedHeard);
+testCase.verifyEqual(full(D(:, colmap.intercept.cols)), zeros(12, 1));
+testCase.verifyEqual(full(D(:, colmap.states.cols)), zeros(12, 2));
 testCase.verifyEqual(full(D(Dmap.produced_spontaneous.rows, colmap.produced_spontaneous.cols)), expectedHeard);
 testCase.verifyEqual(full(D(Dmap.produced_after_heard.rows, colmap.produced_after_heard.cols)), expectedHeard);
 testCase.verifyEqual(full(D(Dmap.produced_after_produced.rows, colmap.produced_after_produced.cols)), expectedHeard);
@@ -43,8 +49,8 @@ colmap = makeColmap();
 cfg = struct('produced_after_heard', false);
 [D, Dmap] = smoothness_penalty(colmap, cfg);
 testCase.verifyFalse(isfield(Dmap, 'produced_after_heard'));
-testCase.verifyEqual(size(D), [8, 23]);
-testCase.verifyEqual(full(D(:, colmap.produced_after_heard.cols)), zeros(8, numel(colmap.produced_after_heard.cols)));
+testCase.verifyEqual(size(D), [10, 27]);
+testCase.verifyEqual(full(D(:, colmap.produced_after_heard.cols)), zeros(10, numel(colmap.produced_after_heard.cols)));
 end
 
 function testLambdaScalingPerBlock(testCase)
@@ -58,8 +64,10 @@ sqrtHeard = sqrt(lambdaCfg.heard);
 sqrtProduced = sqrt(lambdaCfg.produced);
 
 expectedHeard = [1 -2 1 0; 0 1 -2 1];
-heardBlock = full(D(Dmap.heard_any.rows, colmap.heard_any.cols)) ./ sqrtHeard;
+heardBlock = full(D(Dmap.heard_addressed.rows, colmap.heard_addressed.cols)) ./ sqrtHeard;
+overheardBlock = full(D(Dmap.heard_overheard.rows, colmap.heard_overheard.cols)) ./ sqrtHeard;
 testCase.verifyEqual(heardBlock, expectedHeard);
+testCase.verifyEqual(overheardBlock, expectedHeard);
 
 spontBlock = full(D(Dmap.produced_spontaneous.rows, colmap.produced_spontaneous.cols)) ./ sqrtProduced;
 afterHeardBlock = full(D(Dmap.produced_after_heard.rows, colmap.produced_after_heard.cols)) ./ sqrtProduced;
@@ -70,7 +78,7 @@ testCase.verifyEqual(afterProducedBlock, expectedHeard);
 
 testCase.verifyTrue(isfield(Dmap, 'spike_history'));
 testCase.verifyEqual(numel(Dmap.spike_history.rows), 0);
-testCase.verifyEqual(size(D), [8, 23]);
+testCase.verifyEqual(size(D), [10, 27]);
 end
 
 function testScalarLambdaAppliesUniformScaling(testCase)
@@ -82,15 +90,18 @@ lambda = 0.25;
 
 scale = sqrt(lambda);
 expectedHeard = [1 -2 1 0; 0 1 -2 1];
-heardBlock = full(D(Dmap.heard_any.rows, colmap.heard_any.cols)) ./ scale;
+heardBlock = full(D(Dmap.heard_addressed.rows, colmap.heard_addressed.cols)) ./ scale;
+overheardBlock = full(D(Dmap.heard_overheard.rows, colmap.heard_overheard.cols)) ./ scale;
 spontBlock = full(D(Dmap.produced_spontaneous.rows, colmap.produced_spontaneous.cols)) ./ scale;
 afterHeardBlock = full(D(Dmap.produced_after_heard.rows, colmap.produced_after_heard.cols)) ./ scale;
 afterProducedBlock = full(D(Dmap.produced_after_produced.rows, colmap.produced_after_produced.cols)) ./ scale;
 historyBlock = full(D(Dmap.spike_history.rows, colmap.spike_history.cols)) ./ scale;
 
 testCase.verifyEqual(heardBlock, expectedHeard);
+testCase.verifyEqual(overheardBlock, expectedHeard);
 testCase.verifyEqual(spontBlock, expectedHeard);
 testCase.verifyEqual(afterHeardBlock, expectedHeard);
 testCase.verifyEqual(afterProducedBlock, expectedHeard);
 testCase.verifyEqual(historyBlock, expectedHeard);
+testCase.verifyEqual(size(D), [12, 27]);
 end

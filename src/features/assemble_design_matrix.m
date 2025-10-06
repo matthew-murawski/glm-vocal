@@ -20,9 +20,21 @@ if numel(sps) ~= nT
 end
 
 mustHaveField(streams, 'heard_any');
-heard = double(streams.heard_any(:));
-if numel(heard) ~= nT
+if numel(streams.heard_any(:)) ~= nT
     error('assemble_design_matrix:StreamLength', 'heard_any stream must match the stimulus grid.');
+end
+
+heardFields = fetch_heard_fields(streams);
+heardStreams = struct();
+for ii = 1:numel(heardFields)
+    fieldName = heardFields{ii};
+    if ~isfield(streams, fieldName)
+        error('assemble_design_matrix:MissingStream', 'streams missing heard field %s.', fieldName);
+    end
+    heardStreams.(fieldName) = double(streams.(fieldName)(:));
+    if numel(heardStreams.(fieldName)) ~= nT
+        error('assemble_design_matrix:StreamLength', 'stream %s must match the stimulus grid.', fieldName);
+    end
 end
 
 producedFields = fetch_produced_fields(streams);
@@ -76,13 +88,23 @@ if ~skipBlock('intercept')
     colStart = colStart + 1;
 end
 
-if ~skipBlock('heard_any')
-    [heardBlk, heardInfo] = build_basis_block(heard, stim, heardWindow, heardBasisCfg, 'causal');
+heardFieldsIncluded = {};
+for ii = 1:numel(heardFields)
+    fieldName = heardFields{ii};
+    if skipBlock(fieldName)
+        continue
+    end
+    z = heardStreams.(fieldName);
+    [heardBlk, heardInfo] = build_basis_block(z, stim, heardWindow, heardBasisCfg, 'causal');
     blockCells{end+1} = heardBlk; %#ok<AGROW>
     nHeard = size(heardBlk, 2);
     heardCols = colStart:(colStart + nHeard - 1);
-    colmap.heard_any = struct('cols', heardCols, 'info', heardInfo);
+    colmap.(fieldName) = struct('cols', heardCols, 'info', heardInfo);
+    heardFieldsIncluded{end+1} = fieldName; %#ok<AGROW>
     colStart = colStart + nHeard;
+end
+if ~isempty(heardFieldsIncluded)
+    colmap.heard_fields = heardFieldsIncluded;
 end
 
 producedFieldsIncluded = {};
@@ -155,6 +177,14 @@ else
 end
 end
 
+function heardFields = fetch_heard_fields(streams)
+if isstruct(streams) && isfield(streams, 'heard_fields') && ~isempty(streams.heard_fields)
+    heardFields = cellstr(streams.heard_fields(:));
+else
+    heardFields = {'heard_any'};
+end
+end
+
 function window = fetchWindow(cfg, fieldName)
 if ~isstruct(cfg) || ~isfield(cfg, fieldName)
     error('assemble_design_matrix:MissingWindow', 'config missing field %s.', fieldName);
@@ -209,6 +239,10 @@ excludeList = cellfun(@(x) lower(strtrim(x)), raw, 'UniformOutput', false);
 excludeList = excludeList(~cellfun('isempty', excludeList));
 if ~isempty(excludeList)
     excludeList = unique(excludeList, 'stable');
+    if any(strcmp(excludeList, 'heard_any'))
+        extra = {'heard_addressed', 'heard_overheard'};
+        excludeList = unique([excludeList(:); extra(:)], 'stable');
+    end
 end
 end
 

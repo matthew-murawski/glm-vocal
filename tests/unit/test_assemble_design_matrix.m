@@ -27,6 +27,9 @@ function testColumnOrderAndCounts(testCase)
 stim = makeStim(6, 0.1);
 streams = struct();
 streams.heard_any = [0; 1; 0; 1; 0; 0];
+streams.heard_addressed = streams.heard_any;
+streams.heard_overheard = zeros(size(streams.heard_any));
+streams.heard_fields = {'heard_addressed', 'heard_overheard'};
 streams.produced_spontaneous = [1; 0; 0; 0; 1; 0];
 streams.produced_after_heard = [0; 1; 0; 0; 0; 1];
 streams.produced_after_produced = [0; 0; 1; 0; 0; 0];
@@ -44,20 +47,22 @@ Xd = assemble_design_matrix(streams, states, sps, cfg, stim);
 
 testCase.verifyTrue(issparse(Xd.X));
 testCase.verifyEqual(size(Xd.X, 1), numel(stim.t));
-testCase.verifyEqual(size(Xd.X, 2), 18);
+testCase.verifyEqual(size(Xd.X, 2), 21);
 testCase.verifyEqual(Xd.y, sps);
 
 colmap = Xd.colmap;
+testCase.verifyEqual(colmap.heard_fields, streams.heard_fields);
 testCase.verifyEqual(colmap.produced_fields, streams.produced_fields);
 testCase.verifyEqual(colmap.intercept.cols, 1);
-testCase.verifyEqual(colmap.heard_any.cols, (2:4));
-testCase.verifyEqual(colmap.produced_spontaneous.cols, (5:7));
-testCase.verifyEqual(colmap.produced_after_heard.cols, (8:10));
-testCase.verifyEqual(colmap.produced_after_produced.cols, (11:13));
-testCase.verifyEqual(colmap.states.cols, (14:15));
-testCase.verifyEqual(colmap.states.convo, 14);
-testCase.verifyEqual(colmap.states.spon, 15);
-testCase.verifyEqual(colmap.spike_history.cols, (16:18));
+testCase.verifyEqual(colmap.heard_addressed.cols, (2:4));
+testCase.verifyEqual(colmap.heard_overheard.cols, (5:7));
+testCase.verifyEqual(colmap.produced_spontaneous.cols, (8:10));
+testCase.verifyEqual(colmap.produced_after_heard.cols, (11:13));
+testCase.verifyEqual(colmap.produced_after_produced.cols, (14:16));
+testCase.verifyEqual(colmap.states.cols, (17:18));
+testCase.verifyEqual(colmap.states.convo, 17);
+testCase.verifyEqual(colmap.states.spon, 18);
+testCase.verifyEqual(colmap.spike_history.cols, (19:21));
 end
 
 function testMaskDropsBadRows(testCase)
@@ -65,6 +70,9 @@ goodMask = [true; false; true; false; true];
 stim = makeStim(numel(goodMask), 0.1, goodMask);
 streams = struct();
 streams.heard_any = double((1:5)' > 2);
+streams.heard_addressed = streams.heard_any;
+streams.heard_overheard = zeros(size(streams.heard_any));
+streams.heard_fields = {'heard_addressed', 'heard_overheard'};
 streams.produced_spontaneous = double(mod((1:5)', 2) == 0);
 streams.produced_after_heard = double(mod((1:5)', 2) == 1);
 streams.produced_after_produced = zeros(5, 1);
@@ -92,6 +100,9 @@ function testExcludePredictorsSkipsBlocks(testCase)
 stim = makeStim(6, 0.1);
 streams = struct();
 streams.heard_any = [0; 1; 0; 1; 0; 0];
+streams.heard_addressed = streams.heard_any;
+streams.heard_overheard = zeros(size(streams.heard_any));
+streams.heard_fields = {'heard_addressed', 'heard_overheard'};
 streams.produced_spontaneous = [1; 0; 0; 0; 1; 0];
 streams.produced_after_heard = [0; 1; 0; 0; 0; 1];
 streams.produced_after_produced = [0; 0; 1; 0; 0; 0];
@@ -108,10 +119,11 @@ cfg.exclude_predictors = {'states', 'spike_history'};
 
 Xd = assemble_design_matrix(streams, states, sps, cfg, stim);
 
-testCase.verifyEqual(size(Xd.X, 2), 13);
+testCase.verifyEqual(size(Xd.X, 2), 16);
 testCase.verifyFalse(isfield(Xd.colmap, 'states'));
 testCase.verifyFalse(isfield(Xd.colmap, 'spike_history'));
-testCase.verifyTrue(isfield(Xd.colmap, 'heard_any'));
+testCase.verifyTrue(isfield(Xd.colmap, 'heard_addressed'));
+testCase.verifyTrue(isfield(Xd.colmap, 'heard_overheard'));
 testCase.verifyEqual(Xd.y, sps);
 end
 
@@ -119,6 +131,9 @@ function testCallTypeColumns(testCase)
 stim = makeStim(4, 0.1);
 streams = struct();
 streams.heard_any = zeros(4, 1);
+streams.heard_addressed = zeros(4, 1);
+streams.heard_overheard = zeros(4, 1);
+streams.heard_fields = {'heard_addressed', 'heard_overheard'};
 streams.produced_phee = [1; 0; 0; 0];
 streams.produced_twitter = [0; 1; 0; 0];
 streams.produced_trill = [0; 0; 1; 0];

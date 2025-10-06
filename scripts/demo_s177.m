@@ -6,7 +6,7 @@ function demo_s177()
 dataDir = '/Users/matt/Documents/GitHub/vocalization/data/Label Files/S177';
 
 cfgPath = fullfile(rootDir, 'config', 'defaults.json');
-spikePath = fullfile(dataDir, 'M93A_S177_spike_times.mat');
+spikePath = fullfile(dataDir, 'M93A_S177_spike_times_ch28.mat');
 heardPath = fullfile(dataDir, 'M93A_S177_heard.txt');
 producedPath = fullfile(dataDir, 'M93A_S177_produced.txt');
 

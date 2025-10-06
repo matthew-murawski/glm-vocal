@@ -147,14 +147,32 @@ end
 function counts = summarize_event_counts(streams)
 % section event counts
 % collect heard counts plus produced-call counts for each configured category.
-counts = struct('heard', NaN, 'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
+counts = struct('heard', NaN, 'heard_fields', {{}}, 'heard_by_field', struct(), ...
+    'produced_fields', {{}}, 'produced', struct(), 'produced_any', NaN);
 
 if ~isstruct(streams)
     return
 end
 
+heardFields = {};
 if isfield(streams, 'heard_any')
     counts.heard = sum(double(streams.heard_any(:)) > 0);
+end
+
+if isfield(streams, 'heard_fields') && ~isempty(streams.heard_fields)
+    heardFields = cellstr(streams.heard_fields(:));
+else
+    heardFields = {'heard_any'};
+end
+
+counts.heard_fields = heardFields;
+for ii = 1:numel(heardFields)
+    fieldName = heardFields{ii};
+    if isfield(streams, fieldName)
+        counts.heard_by_field.(fieldName) = sum(double(streams.(fieldName)(:)) > 0);
+    else
+        counts.heard_by_field.(fieldName) = NaN;
+    end
 end
 
 if isfield(streams, 'produced_any')

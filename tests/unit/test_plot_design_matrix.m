@@ -10,7 +10,8 @@ function testSmokePlotWritesFile(testCase)
 X = sparse([1 0 0; 0 1 0; 0 0 1]);
 colmap = struct();
 colmap.intercept = struct('cols', 1, 'name', 'intercept');
-colmap.heard_any = struct('cols', 2:3, 'info', struct(), 'names', {{'h0', 'h1'}});
+colmap.heard_fields = {'heard_addressed'};
+colmap.heard_addressed = struct('cols', 2:3, 'info', struct(), 'names', {{'h0', 'h1'}});
 
 tmpDir = tempname;
 mkdir(tmpDir);

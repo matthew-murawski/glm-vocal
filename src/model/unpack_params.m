@@ -11,10 +11,23 @@ if isfield(colmap, 'intercept') && isfield(colmap.intercept, 'cols')
     kernels.intercept = w(colmap.intercept.cols);
 end
 
-% section heard kernel
-% slice the heard stimulus kernel weights and attach lag metadata.
-if isfield(colmap, 'heard_any') && isfield(colmap.heard_any, 'cols')
-    kernels.heard_any = buildKernelBlock(w, colmap.heard_any);
+% section heard kernels
+% slice heard stimulus kernel weights for each configured heard field.
+heardFields = {};
+if isfield(colmap, 'heard_fields') && ~isempty(colmap.heard_fields)
+    heardFields = cellstr(colmap.heard_fields(:));
+elseif isfield(colmap, 'heard_any') && isfield(colmap.heard_any, 'cols')
+    heardFields = {'heard_any'};
+end
+
+for ii = 1:numel(heardFields)
+    fname = heardFields{ii};
+    if isfield(colmap, fname) && isfield(colmap.(fname), 'cols')
+        kernels.(fname) = buildKernelBlock(w, colmap.(fname));
+    end
+end
+if ~isempty(heardFields)
+    kernels.heard_fields = heardFields;
 end
 
 % section produced kernels

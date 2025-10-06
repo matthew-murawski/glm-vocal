@@ -66,7 +66,9 @@ cleanupObj = onCleanup(@() rmdir(outdir, 's'));
 
 kernels = struct();
 kernels.intercept = 0.1;
-kernels.heard_any = struct('weights', [0.1; 0.2], 'lag_times_s', [0; 0.01], 'mode', 'causal');
+kernels.heard_fields = {'heard_addressed', 'heard_overheard'};
+kernels.heard_addressed = struct('weights', [0.1; 0.2], 'lag_times_s', [0; 0.01], 'mode', 'causal');
+kernels.heard_overheard = struct('weights', [0.05; 0.01], 'lag_times_s', [0; 0.01], 'mode', 'causal');
 kernels.produced_spontaneous = struct('weights', [-0.05; 0.05], 'lag_times_s', [-0.01; 0], 'mode', 'symmetric');
 kernels.produced_after_heard = struct('weights', [-0.02; 0.03], 'lag_times_s', [-0.01; 0], 'mode', 'symmetric');
 kernels.produced_after_produced = struct('weights', [0.04; -0.04], 'lag_times_s', [-0.01; 0], 'mode', 'symmetric');

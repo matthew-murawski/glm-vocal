@@ -16,9 +16,14 @@ ev = struct('kind', 'perceived', 't_on', 0.05, 't_off', 0.25, 'label', "");
 streams = build_streams(ev, stim);
 
 expectedHeard = logical([1; 0; 0; 0; 0; 0]);
+expectedAddressed = false(numel(stim.t), 1);
+expectedOverheard = expectedHeard;
 expectedProduced = false(numel(stim.t), 1);
 
 testCase.verifyEqual(streams.heard_any, expectedHeard);
+testCase.verifyEqual(streams.heard_addressed, expectedAddressed);
+testCase.verifyEqual(streams.heard_overheard, expectedOverheard);
+testCase.verifyEqual(streams.heard_fields, {'heard_addressed', 'heard_overheard'});
 testCase.verifyEqual(streams.produced_spontaneous, expectedProduced);
 testCase.verifyEqual(streams.produced_after_heard, expectedProduced);
 testCase.verifyEqual(streams.produced_after_produced, expectedProduced);
@@ -38,11 +43,15 @@ ev = struct( ...
 streams = build_streams(ev, stim);
 
 expectedHeard = logical([1; 0; 0; 1; 0; 0]);
+expectedAddressed = expectedHeard;
+expectedOverheard = false(numel(stim.t), 1);
 expectedAfterHeard = logical([0; 1; 0; 0; 1; 0]);
 expectedAfterProduced = logical([0; 0; 1; 0; 0; 0]);
 expectedSpont = false(numel(stim.t), 1);
 
 testCase.verifyEqual(streams.heard_any, expectedHeard);
+testCase.verifyEqual(streams.heard_addressed, expectedAddressed);
+testCase.verifyEqual(streams.heard_overheard, expectedOverheard);
 testCase.verifyEqual(streams.produced_after_heard, expectedAfterHeard);
 testCase.verifyEqual(streams.produced_after_produced, expectedAfterProduced);
 testCase.verifyEqual(streams.produced_spontaneous, expectedSpont);
@@ -63,8 +72,12 @@ ev(4) = struct('kind', 'perceived', 't_on', 0.20, 't_off', 0.20, 'label', "");
 streams = build_streams(ev, stim);
 
 expectedHeard = logical([0; 1; 0; 0; 0; 0]);
+expectedAddressed = expectedHeard;
+expectedOverheard = false(numel(stim.t), 1);
 expectedProduced = logical([0; 0; 0; 0; 0; 1]);
 testCase.verifyEqual(streams.heard_any, expectedHeard);
+testCase.verifyEqual(streams.heard_addressed, expectedAddressed);
+testCase.verifyEqual(streams.heard_overheard, expectedOverheard);
 testCase.verifyEqual(streams.produced_after_heard, expectedProduced);
 testCase.verifyEqual(streams.produced_spontaneous, false(numel(stim.t), 1));
 testCase.verifyEqual(streams.produced_after_produced, false(numel(stim.t), 1));
@@ -92,7 +105,12 @@ expectedAfterHeard = false(numel(t), 1);
 expectedAfterHeard(5) = true;
 expectedAfterProduced = false(numel(t), 1);
 expectedAfterProduced(6) = true;
+expectedHeard = false(numel(t), 1);
+expectedHeard(3) = true;
 
+testCase.verifyEqual(streams.heard_any, expectedHeard);
+testCase.verifyEqual(streams.heard_addressed, expectedHeard);
+testCase.verifyEqual(streams.heard_overheard, false(numel(t), 1));
 testCase.verifyEqual(streams.produced_spontaneous, expectedSpont);
 testCase.verifyEqual(streams.produced_after_heard, expectedAfterHeard);
 testCase.verifyEqual(streams.produced_after_produced, expectedAfterProduced);
@@ -114,6 +132,7 @@ streams = build_streams(ev, stim, cfg);
 
 expectedFields = {'produced_phee', 'produced_twitter', 'produced_trill', 'produced_trillphee'};
 testCase.verifyEqual(streams.produced_fields, expectedFields);
+testCase.verifyEqual(streams.heard_fields, {'heard_addressed', 'heard_overheard'});
 for ii = 1:numel(expectedFields)
     vec = streams.(expectedFields{ii});
     testCase.verifyEqual(sum(vec), 1);

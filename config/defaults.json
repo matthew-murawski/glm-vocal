@@ -37,6 +37,8 @@
   "seed": 42,
   "exclude_predictors": [],
   "produced_split_mode": "context",
+  "perceived_addressed_window_s": 4.0,
+  "perceived_overheard_silence_s": 5.0,
   "twitter_bout_window_s": 1.5,
   "produced_basis": {
     "kind": "raised_cosine",

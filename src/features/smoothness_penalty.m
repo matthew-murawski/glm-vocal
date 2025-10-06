@@ -149,7 +149,7 @@ function key = lambdaKeyForField(fieldName)
 % section lambda mapping
 % map column-map field names to canonical lambda keys.
 switch fieldName
-    case 'heard_any'
+    case {'heard_any', 'heard_addressed', 'heard_overheard'}
         key = 'heard';
     case 'spike_history'
         key = 'history';
@@ -165,7 +165,7 @@ end
 function tf = shouldPenalize(fieldName, cfg)
 % section penalty selector
 % decide whether a given block should receive a smoothness penalty, defaulting to kernel blocks when the config is silent.
-defaultScalarBlocks = {'heard_any', 'spike_history'};
+defaultScalarBlocks = {'heard_any', 'heard_addressed', 'heard_overheard', 'spike_history'};
 if startsWith(fieldName, 'produced_')
     defaultState = true;
 else

@@ -77,7 +77,7 @@ Each milestone is broken into **iterative chunks**; each chunk ends with a runna
 - **C2.2** `bin_spikes.m` exact histogram counts; edge-bin handling; tests.
 
 ### P3 — Streams & states
-- **C3.1** `build_streams.m` constructing `heard_any` & `produced_any` from intervals; overlap-safe.
+- **C3.1** `build_streams.m` constructing `heard_addressed`/`heard_overheard` & `produced_any` from intervals; overlap-safe.
 - **C3.2** `compute_states.m` rule‑based conversational vs spontaneous using response window; interval algebra & rasterization; tests.
 
 ### P4 — Features → design matrix
@@ -357,7 +357,7 @@ Tests test_bin_spikes.m:
 ```text
 Implement src/preprocess/build_streams.m:
 - Inputs: ev, stim
-- Outputs: streams struct with logical vectors heard_any, produced_any aligned to stim.t
+- Outputs: streams struct with logical vectors heard_addressed, heard_overheard, produced_any aligned to stim.t
 - Definition: mark bin as 1 if interval [t_on,t_off) overlaps the bin
 
 Tests test_build_streams.m:
@@ -415,7 +415,7 @@ Tests test_build_history_block.m on synthetic spike trains.
 Implement src/features/assemble_design_matrix.m:
 - Inputs: streams, states, sps, cfg (windows), stim
 - Build blocks:
-  intercept, heard_any (causal), produced_any (symmetric), states (two scalar cols), spike_history (causal)
+  intercept, heard_addressed (causal), heard_overheard (causal), produced_any (symmetric), states (two scalar cols), spike_history (causal)
 - Output Xd with fields X (sparse), y (sps), colmap
 
 Tests test_assemble_design_matrix.m:

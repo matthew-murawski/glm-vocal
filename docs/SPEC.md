@@ -10,7 +10,7 @@
 
 ## 0) TL;DR (for the implementer)
 - **Inputs:** per-neuron spike times; labeled produced calls (on/off, type optional); labeled perceived calls (on/off, type optional); optional noise/background regressors.  
-- **Transform:** bin to fixed `dt`; make **regressor streams**: `heard_any` (causal kernel), `produced_any` (symmetric kernel), `state_convo` / `state_spon` (scalars), plus **spike-history** (causal kernel). Build a **sparse design matrix** with lagged copies per stream.  
+- **Transform:** bin to fixed `dt`; make **regressor streams**: `heard_addressed` and `heard_overheard` (causal kernels split by conversational proximity), `produced_any` (symmetric kernel), `state_convo` / `state_spon` (scalars), plus **spike-history** (causal kernel). Build a **sparse design matrix** with lagged copies per stream.  
 - **Model:** Poisson GLM with exponential link; **smoothness L2** per kernel; **blocked CV** to choose λ; fit MAP; unpack kernels; plot & evaluate.  
 - **Outputs:** learned kernels (heard, produced, history), state coefficients, predicted rate, fit metrics, QC plots.  
 - **MVP differences from Li:** “speaker” → “other-marmosets heard”; define conversational/spontaneous states by response-window rules; handle overlaps; start pooled across call types.
@@ -22,7 +22,7 @@
 ### 1.1 MVP
 - Single-session, single-neuron GLM fit.
 - Regressors:
-  - **heard_any:** binary time series (1 when any perceived conspecific call is on). **Causal** kernel over `[0, L_heard]` ms.
+- **heard_addressed / heard_overheard:** binary time series marking perceived calls classified by subject-produced-call proximity (addressed: onset within 4 s of any subject production; overheard: at least 5 s of subject silence before and after). Both use **causal** kernels over `[0, L_heard]` ms.
   - **produced_any:** binary time series (1 when subject produces a call). **Symmetric** kernel over `[-L_prod_pre, +L_prod_post]` ms.
   - **state_convo, state_spon:** binary “context” flags with **scalar** coefficients (no temporal lags).
   - **spike_history:** causal kernel over `[dt, L_hist]` ms from the neuron’s own spike train.
@@ -61,7 +61,7 @@ glm-vocal/
 │  ├─ preprocess/
 │  │  ├─ build_timebase.m          # builds time grid, masks
 │  │  ├─ bin_spikes.m
-│  │  ├─ build_streams.m           # builds heard_any, produced_any, optional type-specific
+│  │  ├─ build_streams.m           # builds heard_addressed/overheard, produced_any, optional type-specific
 │  │  └─ compute_states.m          # derives conversational/spontaneous flags from rules
 │  ├─ features/
 │  │  ├─ build_kernel_block.m      # makes lagged-columns for a binary stream
@@ -136,7 +136,7 @@ stim.mask.good: [nT x 1] logical (default all true)
 
 ### 3.4 Regressor Streams
 From `events` to binary time series aligned to `stim.t`:
-- `streams.heard_any` (1 if any perceived call overlaps the bin interval)
+- `streams.heard_addressed` / `streams.heard_overheard` (1 at perceived-call onset bins classified as addressed vs overheard)
 - `streams.produced_any` (1 if any subject call overlaps the bin interval)
 - Optional: per-type versions later (e.g., `heard_phee`, `produced_twitter`), **not in MVP**.
 
@@ -158,7 +158,7 @@ Implementation tip: build interval lists, do interval algebra, then rasterize to
 ## 4) Feature Engineering → Design Matrix
 
 ### 4.1 Kernel Definitions (MVP defaults)
-- **heard_any** (causal): window `[0, 0.4]` s → `L_heard = 0.4/dt + 1` columns (including lag 0).
+- **heard_addressed** / **heard_overheard** (causal): window `[0, 0.4]` s → `L_heard = 0.4/dt + 1` columns (including lag 0) for each stream.
 - **produced_any** (symmetric): window `[-0.5, +0.5]` s → `L_pre = 0.5/dt`, `L_post = 0.5/dt` columns; center at t=0.
 - **spike_history** (causal): window `[dt, 0.2]` s → `L_hist = 0.2/dt` columns (exclude lag 0).
 - **states**: `state_convo`, `state_spon` → **two scalar columns** (no lags).
@@ -175,7 +175,7 @@ Use **sparse** assembly:
 
 ### 4.3 Design Matrix Layout (column order)
 ```
-[ intercept | heard_any_block | produced_any_block | state_convo | state_spon | spike_hist_block ]
+[ intercept | heard_addressed_block | heard_overheard_block | produced_any_block | state_convo | state_spon | spike_hist_block ]
 ```
 Return:
 ```matlab
@@ -328,7 +328,7 @@ ev = load_labels("data/sessionA/labels.mat");
 stim = build_timebase(ev, sp, cfg.dt);        % t, dt, mask
 sps  = bin_spikes(sp.spike_times, stim);
 
-streams = build_streams(ev, stim);            % heard_any, produced_any
+streams = build_streams(ev, stim);            % heard_addressed/overheard, produced_any
 states  = compute_states(ev, stim, cfg.state);
 
 Xd = assemble_design_matrix(streams, states, sps, cfg);  % X, y, colmap
