@@ -93,12 +93,35 @@ plot_psths(sp, heardEvents, producedEvents, cfg, plotDir);
 summary = qc_session_summary(Xd, wmap, rate, cvinfo, kernels, ptest, outdir);
 
 artifactPath = fullfile(outdir, 'fit_results.mat');
-save(artifactPath, 'cfg', 'sp', 'events', 'stim', 'sps', 'streams', 'states', 'Xd', 'D', 'Dmap', 'best_lambda', 'cvinfo', 'wmap', 'fitinfo', 'kernels', 'ptest', 'metricsOut', 'summary');
+save(artifactPath, 'cfg', 'sp', 'events', 'stim', 'sps', 'streams', 'states', 'Xd', 'D', 'Dmap', 'best_lambda', 'cvinfo', 'wmap', 'fitinfo', 'kernels', 'ptest', 'metricsOut', 'summary', 'rate');
+
+% section compare history variants
+% focus on the first produced call and overlay actual vs predicted rates for models with and without spike history.
+if exist('rate_with_history', 'var') && exist('rate_without_history', 'var')
+    produced_mask = arrayfun(@(evt) isfield(evt, 'kind') && strcmpi(evt.kind, 'produced'), events);
+    produced_events = events(produced_mask);
+    if ~isempty(produced_events)
+        first_produced_call_time = produced_events(1).t_on;
+        if ~isempty(first_produced_call_time) && isfinite(first_produced_call_time)
+            start_sec = first_produced_call_time - 5;
+            duration_sec = 10;
+
+            rate_with_series = collect_rate_series(rate_with_history);
+            rate_without_series = collect_rate_series(rate_without_history);
+
+            if ~isempty(rate_with_series) && ~isempty(rate_without_series)
+                plot_predictions(stim, sps, rate_with_series, events, start_sec, duration_sec, 'Model Prediction with Spike History');
+                plot_predictions(stim, sps, rate_without_series, events, start_sec, duration_sec, 'Model Prediction without Spike History');
+            end
+        end
+    end
+end
 
 if nargout > 0
-    result = struct('cfg', cfg, 'sp', sp, 'events', events, 'Xd', Xd, 'wmap', wmap, ...
-        'cvinfo', cvinfo, 'fitinfo', fitinfo, 'kernels', kernels, 'ptest', ptest, 'metrics', metricsOut, ...
-        'summary', summary, 'paths', struct('outdir', outdir, 'artifact', artifactPath, 'plots', plotDir));
+    result = struct('cfg', cfg, 'sp', sp, 'events', events, 'stim', stim, 'sps', sps, ...
+        'Xd', Xd, 'wmap', wmap, 'cvinfo', cvinfo, 'fitinfo', fitinfo, 'kernels', kernels, ...
+        'ptest', ptest, 'metrics', metricsOut, 'rate', rate, 'summary', summary, ...
+        'paths', struct('outdir', outdir, 'artifact', artifactPath, 'plots', plotDir));
 end
 end
 
@@ -234,4 +257,27 @@ end
 
 function rec = empty_event_record()
 rec = struct('kind', '', 't_on', [], 't_off', [], 'label', "");
+end
+
+function series = collect_rate_series(candidate)
+% section rate extraction helper
+% reduce structs or raw vectors to the per-bin predicted rate series expected by plot_predictions.
+series = [];
+if isempty(candidate)
+    return
+end
+
+if isstruct(candidate)
+    if isfield(candidate, 'mu')
+        series = candidate.mu;
+    elseif isfield(candidate, 'rate')
+        series = candidate.rate;
+    end
+elseif isnumeric(candidate)
+    series = candidate;
+end
+
+if ~isempty(series)
+    series = series(:);
+end
 end
