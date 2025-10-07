@@ -1,4 +1,4 @@
-function plot_predictions(stim, sps, rate, ev, start_sec, duration_sec, plot_title)
+function fig = plot_predictions(stim, sps, rate, ev, start_sec, duration_sec, plot_title)
 % section input checks
 % confirm basic alignment and parameters before attempting to render the comparison plot.
 if nargin < 7
@@ -10,7 +10,6 @@ end
 if ~isnumeric(stim.dt) || ~isscalar(stim.dt) || ~isfinite(stim.dt) || stim.dt <= 0
     error('plot_predictions:BadDt', 'stim.dt must be a positive scalar.');
 end
-
 t = stim.t(:);
 sps = sps(:);
 rate = rate(:);
@@ -27,7 +26,6 @@ if ~ischar(plot_title) && ~isstring(plot_title)
     error('plot_predictions:BadTitle', 'plot_title must be a character vector or string scalar.');
 end
 plot_title = char(plot_title);
-
 % section window selection
 % choose the indices that fall inside the requested window, clipping to available samples where needed.
 window_start = start_sec;
@@ -36,121 +34,137 @@ mask = (t >= window_start) & (t <= window_end);
 if ~any(mask)
     error('plot_predictions:EmptyWindow', 'the requested window contains no samples.');
 end
-
 % section convert to rates
 % compute firing-rate estimates (hz) so actual and predicted traces share units.
 dt = stim.dt;
 t_window = t(mask);
 actual_hz = sps(mask) ./ dt;
 pred_hz = rate(mask) ./ dt;
-
 % section prepare events
-% gather event onset times and kinds so call annotations can be layered cleanly.
-event_times = [];
+% gather onset/offset pairs and kinds so call annotations become span boxes below the rate plot.
+event_on = [];
+event_off = [];
 event_kinds = {};
-if nargin >= 4 && ~isempty(ev) && isstruct(ev) && isfield(ev, 't_on') && isfield(ev, 'kind')
-    if numel(ev) > 1
-        raw_times = [ev(:).t_on];
-        raw_kinds = {ev(:).kind};
-    else
-        raw_times = ev.t_on;
-        raw_kinds = ev.kind;
+if nargin >= 4 && ~isempty(ev) && isstruct(ev)
+    has_on = all(isfield(ev, 't_on'));
+    has_kind = all(isfield(ev, 'kind'));
+    if has_on && has_kind
+        for ii = 1:numel(ev)
+            evt = ev(ii);
+            on_val = evt.t_on;
+            if ~isfinite(on_val)
+                continue
+            end
+            if isfield(evt, 't_off')
+                off_val = evt.t_off;
+            else
+                off_val = on_val;
+            end
+            if ~isfinite(off_val) || off_val < on_val
+                off_val = on_val;
+            end
+            kind_val = evt.kind;
+            if isstring(kind_val)
+                kind_val = char(kind_val);
+            end
+            kind_norm = lower(strtrim(kind_val));
+            if isempty(kind_norm)
+                continue
+            end
+            if ~strcmp(kind_norm, 'produced') && ~strcmp(kind_norm, 'perceived')
+                continue
+            end
+            event_on(end+1, 1) = on_val; %#ok<AGROW>
+            event_off(end+1, 1) = off_val; %#ok<AGROW>
+            event_kinds{end+1, 1} = kind_norm; %#ok<AGROW>
+        end
     end
-
-    raw_times = raw_times(:);
-    if iscell(raw_kinds)
-        raw_kinds = raw_kinds(:);
-    elseif isstring(raw_kinds)
-        raw_kinds = cellstr(raw_kinds(:));
-    elseif ischar(raw_kinds)
-        if size(raw_kinds, 1) == numel(raw_times)
-            raw_kinds = cellstr(raw_kinds);
-        else
-            raw_kinds = {raw_kinds};
-        end
-    else
-        raw_kinds = cell(numel(raw_times), 1);
-    end
-
-    valid_times = [];
-    valid_kinds = {};
-    for ii = 1:numel(raw_times)
-        time_val = raw_times(ii);
-        if ~isfinite(time_val)
-            continue
-        end
-        kind_val = '';
-        if ii <= numel(raw_kinds) && ~isempty(raw_kinds{ii})
-            kind_val = raw_kinds{ii};
-        end
-        if isstring(kind_val)
-            kind_val = char(kind_val);
-        end
-        kind_norm = lower(strtrim(kind_val));
-        if isempty(kind_norm)
-            continue
-        end
-        if ~strcmp(kind_norm, 'produced') && ~strcmp(kind_norm, 'perceived')
-            continue
-        end
-        valid_times(end+1, 1) = time_val; %#ok<AGROW>
-        valid_kinds{end+1, 1} = kind_norm; %#ok<AGROW>
-    end
-    event_times = valid_times;
-    event_kinds = valid_kinds;
 end
-
 % section draw lines
 % render the actual and predicted rate traces and seed legend entries for call markers.
 actual_color = [0.1, 0.1, 0.1];
 pred_color = [0.0, 0.6, 0.2];
 produced_color = [0.85, 0.33, 0.1];
 perceived_color = [0.0, 0.45, 0.74];
-
 fig = figure('Color', 'w');
-ax = axes(fig);
-hold(ax, 'on');
-actual_handle = plot(ax, t_window, actual_hz, 'Color', actual_color, 'LineWidth', 1.5, 'DisplayName', 'Actual Rate');
-pred_handle = plot(ax, t_window, pred_hz, 'Color', pred_color, 'LineWidth', 1.5, 'DisplayName', 'Predicted Rate');
+layout = tiledlayout(fig, 4, 1, 'TileSpacing', 'tight', 'Padding', 'compact');
+ax_rate = nexttile(layout, [3, 1]);
+hold(ax_rate, 'on');
+
+% --- MODIFICATION IS HERE ---
+actual_handle = stem(ax_rate, t_window, actual_hz, ...
+    'LineStyle', '--', ...
+    'Marker', '.', ...
+    'MarkerSize', 12, ...
+    'Color', actual_color, ...
+    'DisplayName', 'Actual Rate', ...
+    'BaseValue', 0);
+% --- END MODIFICATION ---
+
+pred_handle = plot(ax_rate, t_window, pred_hz, 'Color', pred_color, 'LineWidth', 1.5, 'DisplayName', 'Predicted Rate');
 legend_handles = [actual_handle, pred_handle];
 legend_labels = {'Actual Rate', 'Predicted Rate'};
 
-in_window_mask = (event_times >= window_start) & (event_times <= window_end);
-has_produced = any(in_window_mask & strcmp(event_kinds, 'produced'));
-has_perceived = any(in_window_mask & strcmp(event_kinds, 'perceived'));
+overlaps_window = false(numel(event_on), 1);
+for ii = 1:numel(event_on)
+    overlaps_window(ii) = (event_off(ii) >= window_start) && (event_on(ii) <= window_end);
+end
+
+has_produced = any(overlaps_window & strcmp(event_kinds, 'produced'));
+has_perceived = any(overlaps_window & strcmp(event_kinds, 'perceived'));
 if has_produced
-    legend_handles(end+1) = plot(ax, nan, nan, 'Color', produced_color, 'LineWidth', 1.2, 'DisplayName', 'Produced Call'); %#ok<AGROW>
+    legend_handles(end+1) = plot(ax_rate, nan, nan, 'Color', produced_color, 'LineWidth', 1.2, 'DisplayName', 'Produced Call'); %#ok<AGROW>
     legend_labels{end+1} = 'Produced Call'; %#ok<AGROW>
 end
 if has_perceived
-    legend_handles(end+1) = plot(ax, nan, nan, 'Color', perceived_color, 'LineWidth', 1.2, 'DisplayName', 'Perceived Call'); %#ok<AGROW>
+    legend_handles(end+1) = plot(ax_rate, nan, nan, 'Color', perceived_color, 'LineWidth', 1.2, 'DisplayName', 'Perceived Call'); %#ok<AGROW>
     legend_labels{end+1} = 'Perceived Call'; %#ok<AGROW>
 end
 
-% section event markers
-% overlay vertical lines for produced and perceived onsets while keeping the legend tidy.
-for ii = 1:numel(event_times)
-    t_on = event_times(ii);
-    if t_on < window_start || t_on > window_end
+ax_events = nexttile(layout);
+hold(ax_events, 'on');
+for ii = 1:numel(event_on)
+    if ~overlaps_window(ii)
+        continue
+    end
+    span_start = max(event_on(ii), window_start);
+    span_end = min(event_off(ii), window_end);
+    if span_end <= span_start
         continue
     end
     kind = event_kinds{ii};
     if strcmp(kind, 'produced')
-        h = xline(ax, t_on, '-', 'Color', produced_color, 'LineWidth', 1.2);
-        set(h, 'HandleVisibility', 'off');
-    elseif strcmp(kind, 'perceived')
-        h = xline(ax, t_on, '-', 'Color', perceived_color, 'LineWidth', 1.2);
-        set(h, 'HandleVisibility', 'off');
+        y_bottom = 0.55;
+        y_top = 0.95;
+        color_val = produced_color;
+    else
+        y_bottom = 0.05;
+        y_top = 0.45;
+        color_val = perceived_color;
     end
+    patch(ax_events, ...
+        'XData', [span_start, span_start, span_end, span_end], ...
+        'YData', [y_bottom, y_top, y_top, y_bottom], ...
+        'FaceColor', 'none', ...
+        'EdgeColor', color_val, ...
+        'LineWidth', 1.4);
 end
-hold(ax, 'off');
+hold(ax_events, 'off');
 
+hold(ax_rate, 'off');
 % section finalize plot
 % polish axis limits, labels, grid, and title so the plot communicates context immediately.
-xlim(ax, [window_start, window_end]);
-xlabel(ax, 'Time (s)');
-ylabel(ax, 'Firing Rate (Hz)');
-title(ax, plot_title);
-legend(ax, legend_handles, legend_labels, 'Location', 'best');
-grid(ax, 'on');
+xlim(ax_rate, [window_start, window_end]);
+xlim(ax_events, [window_start, window_end]);
+ylabel(ax_rate, 'Firing Rate (Hz)');
+title(ax_rate, plot_title);
+legend(ax_rate, legend_handles, legend_labels, 'Location', 'best');
+grid(ax_rate, 'on');
+
+ylim(ax_events, [0, 1]);
+yticks(ax_events, [0.25, 0.75]);
+yticklabels(ax_events, {'perceived', 'produced'});
+xlabel(ax_events, 'Time (s)');
+ylabel(ax_events, 'Events');
+grid(ax_events, 'off');
 end
