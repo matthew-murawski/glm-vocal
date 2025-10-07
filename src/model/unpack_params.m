@@ -15,7 +15,11 @@ end
 % slice heard stimulus kernel weights for each configured heard field.
 heardFields = {};
 if isfield(colmap, 'heard_fields') && ~isempty(colmap.heard_fields)
-    heardFields = cellstr(colmap.heard_fields(:));
+    if iscell(colmap.heard_fields)
+        heardFields = colmap.heard_fields(:)';
+    else
+        heardFields = cellstr(colmap.heard_fields(:))';
+    end
 elseif isfield(colmap, 'heard_any') && isfield(colmap.heard_any, 'cols')
     heardFields = {'heard_any'};
 end
@@ -34,7 +38,11 @@ end
 % slice each produced-call kernel using the field order stored in the column map when available.
 producedFields = {};
 if isfield(colmap, 'produced_fields') && ~isempty(colmap.produced_fields)
-    producedFields = cellstr(colmap.produced_fields(:));
+    if iscell(colmap.produced_fields)
+        producedFields = colmap.produced_fields(:)';
+    else
+        producedFields = cellstr(colmap.produced_fields(:))';
+    end
 else
     candidates = fieldnames(colmap);
     producedFields = candidates(startsWith(candidates, 'produced_'));
