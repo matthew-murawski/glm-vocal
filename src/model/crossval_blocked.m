@@ -22,13 +22,27 @@ end
 X = Xd.X;
 y = Xd.y;
 
+% detect response type from Xd (default to 'spikes' for backward compatibility)
+if isfield(Xd, 'response_type')
+    response_type = Xd.response_type;
+else
+    response_type = 'spikes';
+end
+
+% determine evaluation metric based on response type
+if strcmpi(response_type, 'lfp')
+    metric_name = 'mse';  % mean squared error for continuous LFP
+else
+    metric_name = 'nll';  % negative log-likelihood for spike counts
+end
+
 n = numel(y);
 foldSizes = computeFoldSizes(n, k);
 
 foldBreaks = [0, cumsum(foldSizes)];
 
 nLambda = numel(lambdas);
-freqNll = zeros(nLambda, k);
+freqMetric = zeros(nLambda, k);
 
 for ll = 1:nLambda
     lambda = lambdas(ll);
@@ -44,6 +58,10 @@ for ll = 1:nLambda
         ytest = y(testIdx);
 
         XdTrain = struct('X', Xtrain, 'y', ytrain);
+        % preserve response_type in training data struct
+        if isfield(Xd, 'response_type')
+            XdTrain.response_type = Xd.response_type;
+        end
 
         if isempty(D)
             Dtrain = D;
@@ -54,24 +72,43 @@ for ll = 1:nLambda
         model = fitfun(XdTrain, Dtrain, lambda);
         w = model.w;
 
-        Xw = Xtest * w;
-        Xw = max(min(Xw, 50), -50);
-        mu = exp(Xw);
-        nll = sum(mu - ytest .* Xw);
-        freqNll(ll, fold) = nll / numel(ytest);
+        % compute evaluation metric based on response type
+        if strcmpi(response_type, 'lfp')
+            % for LFP: use mean squared error
+            % assume identity link (can extend to support log link if needed)
+            lfp_pred = Xtest * w;
+            residuals = ytest - lfp_pred;
+            mse = sum(residuals.^2) / numel(ytest);
+            freqMetric(ll, fold) = mse;
+        else
+            % for spikes: use Poisson negative log-likelihood
+            Xw = Xtest * w;
+            Xw = max(min(Xw, 50), -50);
+            mu = exp(Xw);
+            nll = sum(mu - ytest .* Xw);
+            freqMetric(ll, fold) = nll / numel(ytest);
+        end
     end
 end
 
-meanNll = mean(freqNll, 2);
-[~, bestIdx] = min(meanNll);
+meanMetric = mean(freqMetric, 2);
+[~, bestIdx] = min(meanMetric);
 best_lambda = lambdas(bestIdx);
 
 cvinfo = struct();
 cvinfo.lambdas = lambdas;
-cvinfo.mean_nll = meanNll;
-cvinfo.fold_nll = freqNll;
+cvinfo.metric_name = metric_name;
+cvinfo.mean_metric = meanMetric;
+cvinfo.fold_metric = freqMetric;
 cvinfo.k = k;
 cvinfo.fold_sizes = foldSizes;
+cvinfo.response_type = response_type;
+
+% for backward compatibility, also store with old field names
+if strcmpi(response_type, 'spikes')
+    cvinfo.mean_nll = meanMetric;
+    cvinfo.fold_nll = freqMetric;
+end
 end
 
 function foldSizes = computeFoldSizes(n, k)

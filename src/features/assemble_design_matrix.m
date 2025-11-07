@@ -1,4 +1,4 @@
-function Xd = assemble_design_matrix(streams, states, sps, cfg, stim)
+function Xd = assemble_design_matrix(streams, states, response_data, cfg, stim)
 % section input validation
 % confirm the stimulus timeline, streams, and configuration expose the required fields before building kernels.
 mustHaveField(stim, 't');
@@ -14,10 +14,21 @@ if ~isscalar(dt) || ~isfinite(dt) || dt <= 0
 end
 nT = numel(t);
 
-sps = double(sps(:));
-if numel(sps) ~= nT
-    error('assemble_design_matrix:SpikeLength', 'spike raster length (%d) must match stim.t (%d).', numel(sps), nT);
+% determine response type from config (default to 'spikes' for backward compatibility)
+if isstruct(cfg) && isfield(cfg, 'response_type')
+    response_type = cfg.response_type;
+else
+    response_type = 'spikes';
 end
+
+% validate response_data based on response type
+response_data = double(response_data(:));
+if numel(response_data) ~= nT
+    error('assemble_design_matrix:ResponseLength', 'response data length (%d) must match stim.t (%d).', numel(response_data), nT);
+end
+
+% for backward compatibility, still accept 'sps' as variable name
+sps = response_data;
 
 mustHaveField(streams, 'heard_any');
 if numel(streams.heard_any(:)) ~= nT
@@ -60,7 +71,14 @@ end
 
 heardWindow = fetchWindow(cfg, 'heard_window_s');
 producedWindow = fetchWindow(cfg, 'produced_window_s');
-historyWindow = fetchWindow(cfg, 'history_window_s');
+
+% fetch history window based on response type
+if strcmpi(response_type, 'lfp') && isfield(cfg, 'lfp') && isfield(cfg.lfp, 'history_window_s')
+    historyWindow = fetchWindow(cfg.lfp, 'history_window_s');
+else
+    historyWindow = fetchWindow(cfg, 'history_window_s');
+end
+
 heardBasisCfg = fetchBasis(cfg, 'heard_basis');
 producedBasisCfg = fetchBasis(cfg, 'produced_basis');
 
@@ -139,13 +157,37 @@ if ~skipBlock('states')
     colStart = colStart + numel(stateCols);
 end
 
-if ~skipBlock('spike_history')
-    [historyBlk, historyInfo] = build_history_block(sps, stim, historyWindow);
-    blockCells{end+1} = historyBlk; %#ok<AGROW>
-    nHist = size(historyBlk, 2);
-    historyCols = colStart:(colStart + nHist - 1);
-    colmap.spike_history = struct('cols', historyCols, 'info', historyInfo);
-    colStart = colStart + nHist;
+% build history block based on response type
+if strcmpi(response_type, 'spikes')
+    history_block_name = 'spike_history';
+    if ~skipBlock(history_block_name)
+        [historyBlk, historyInfo] = build_history_block(response_data, stim, historyWindow);
+        blockCells{end+1} = historyBlk; %#ok<AGROW>
+        nHist = size(historyBlk, 2);
+        historyCols = colStart:(colStart + nHist - 1);
+        colmap.spike_history = struct('cols', historyCols, 'info', historyInfo);
+        colStart = colStart + nHist;
+    end
+elseif strcmpi(response_type, 'lfp')
+    history_block_name = 'lfp_history';
+    if ~skipBlock(history_block_name)
+        % check if LFP history should use basis projection
+        use_lfp_basis = false;
+        if isfield(cfg, 'lfp') && isfield(cfg.lfp, 'history_basis') && ...
+           isstruct(cfg.lfp.history_basis) && isfield(cfg.lfp.history_basis, 'kind') && ...
+           ~strcmpi(cfg.lfp.history_basis.kind, 'raw')
+            use_lfp_basis = true;
+        end
+
+        [historyBlk, historyInfo] = build_lfp_history_block(response_data, stim, historyWindow, use_lfp_basis);
+        blockCells{end+1} = historyBlk; %#ok<AGROW>
+        nHist = size(historyBlk, 2);
+        historyCols = colStart:(colStart + nHist - 1);
+        colmap.lfp_history = struct('cols', historyCols, 'info', historyInfo);
+        colStart = colStart + nHist;
+    end
+else
+    error('assemble_design_matrix:InvalidResponseType', 'response_type must be "spikes" or "lfp", got: %s', response_type);
 end
 
 if isempty(blockCells)
@@ -155,7 +197,7 @@ else
 end
 
 % section mask application
-y = sps;
+y = response_data;
 if any(~goodMask)
     X = X(goodMask, :);
     y = y(goodMask);
@@ -166,6 +208,7 @@ Xd = struct();
 Xd.X = X;
 Xd.y = y;
 Xd.colmap = colmap;
+Xd.response_type = response_type;
 end
 
 function producedFields = fetch_produced_fields(streams)

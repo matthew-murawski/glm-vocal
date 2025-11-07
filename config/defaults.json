@@ -1,5 +1,5 @@
 {
-  "dt": 0.1,
+  "dt": 0.2,
   "heard_window_s": [
     0.0,
     2
@@ -15,14 +15,7 @@
   "cv": {
     "k": 5,
     "lambdas": [
-      0.1,
-      0.3,
-      1.0,
-      3.0,
-      10.0,
-      30.0,
-      100.0,
-      200.0
+      0.1
     ]
   },
   "state": {
@@ -51,5 +44,26 @@
     "n_basis": 8,
     "overlap": 2.0,
     "normalize": "l1"
+  },
+  "response_type": "spikes",
+  "lfp": {
+    "data_file": "",
+    "fs_original": 1000,
+    "bandpass_hz": [
+      1,
+      100
+    ],
+    "normalize": "zscore",
+    "history_window_s": [
+      0.01,
+      0.5
+    ],
+    "history_basis": {
+      "kind": "raised_cosine",
+      "n_basis": 8,
+      "overlap": 2.0
+    },
+    "link": "identity",
+    "channel_ids": []
   }
 }
