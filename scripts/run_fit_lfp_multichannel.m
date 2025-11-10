@@ -20,10 +20,15 @@ lfpPath = fullfile(P.repo_root, 'output/glm/M93A_S177_HG_for_GLM.mat');
 labelDir = fullfile(P.repo_root, 'data', 'Label Files', sprintf('S%d', session));
 heardPath = fullfile(labelDir, sprintf('%s_S%d_heard.txt', monkey, session));
 producedPath = fullfile(labelDir, sprintf('%s_S%d_produced.txt', monkey, session));
-outdir = fullfile(P.github_path, 'glm-vocal', sprintf('results_lfp_%s_S%d', monkey, session));
+% make a unique output folder under results/glm using session and timestamp
+baseOut = fullfile(P.github_path, 'glm-vocal', 'results', 'glm');
+if ~exist(baseOut, 'dir'); mkdir(baseOut); end
+session_slug = sprintf('s%d', session);
+timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+outdir = fullfile(baseOut, sprintf('%s_%s', lower(session_slug), timestamp));
+if ~exist(outdir, 'dir'); mkdir(outdir); end
 
 % run orchestrator
 results = orchestrate_fit_lfp_multichannel(cfgPath, lfpPath, heardPath, producedPath, outdir, P);
 
 fprintf('Results generated at %s. Done.\n', outdir);
-

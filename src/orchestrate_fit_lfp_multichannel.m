@@ -48,7 +48,25 @@ events = [heardEvents; producedEvents];
 
 % create output directory
 if isempty(outdir)
-    outdir = fullfile(rootDir, 'results_lfp');
+    baseOut = fullfile(rootDir, 'results', 'glm');
+    if ~exist(baseOut, 'dir'); mkdir(baseOut); end
+    % derive session slug from any provided file paths (heard/produced/lfp)
+    session_slug = 's000';
+    sessionTok = [];
+    if ~isempty(heardPath) && (ischar(heardPath) || isstring(heardPath))
+        sessionTok = regexp(char(heardPath), 'S(\d+)', 'tokens', 'once');
+    end
+    if isempty(sessionTok) && ~isempty(producedPath) && (ischar(producedPath) || isstring(producedPath))
+        sessionTok = regexp(char(producedPath), 'S(\d+)', 'tokens', 'once');
+    end
+    if isempty(sessionTok) && ~isempty(lfpPath) && (ischar(lfpPath) || isstring(lfpPath))
+        sessionTok = regexp(char(lfpPath), 'S(\d+)', 'tokens', 'once');
+    end
+    if ~isempty(sessionTok)
+        session_slug = ['s', sessionTok{1}];
+    end
+    timestamp = datestr(now, 'yyyymmdd_HHMMSS');
+    outdir = fullfile(baseOut, sprintf('%s_%s', lower(session_slug), timestamp));
 end
 if ~exist(outdir, 'dir')
     mkdir(outdir);
