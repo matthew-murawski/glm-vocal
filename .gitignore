@@ -31,3 +31,4 @@ results/
 .DS_Store
 *.asv
 /results_synthetic
+/results_lfp_M93A_S177

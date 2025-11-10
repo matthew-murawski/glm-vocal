@@ -12,8 +12,11 @@ fprintf('Starting LFP GLM fit for %s | session %d\n', monkey, session);
 
 % build absolute paths from environment struct P
 cfgPath = fullfile(P.github_path, 'glm-vocal', 'config', 'defaults.json');
-lfpPath = fullfile(P.raw_data_root, 'LFP_MAT', monkey, 'Continuous', ...
-                   sprintf('%s_S%d_continuousLFP.mat', monkey, session));
+% lfpPath = fullfile(P.raw_data_root, 'LFP_MAT', monkey, 'Continuous', ...
+%                   sprintf('%s_S%d_continuousLFP.mat', monkey, session));
+
+lfpPath = fullfile(P.repo_root, 'output/glm/M93A_S177_HG_for_GLM.mat');
+
 labelDir = fullfile(P.repo_root, 'data', 'Label Files', sprintf('S%d', session));
 heardPath = fullfile(labelDir, sprintf('%s_S%d_heard.txt', monkey, session));
 producedPath = fullfile(labelDir, sprintf('%s_S%d_produced.txt', monkey, session));

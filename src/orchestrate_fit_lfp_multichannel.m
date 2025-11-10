@@ -99,7 +99,13 @@ n_channels = lfp_data.n_channels;
 results = repmat(struct(), n_channels, 1);
 
 fprintf('Fitting GLM to %d channels...\n', n_channels);
-for ch = 1:n_channels
+
+poolobj = gcp('nocreate'); % Get current pool without creating new one
+if isempty(poolobj)
+    parpool; % Creates pool with default number of workers
+end
+
+parfor ch = 1:n_channels
     fprintf('  Channel %d/%d (ID: %s)... ', ch, n_channels, num2str(lfp_data.channel_ids(ch)));
 
     lfp_ch = lfp_binned(:, ch);
