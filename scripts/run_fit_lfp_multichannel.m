@@ -126,6 +126,9 @@ for ch = 1:n_channels
 
     kernels = unpack_params(wmap, Xd.colmap, cfg, stim);
 
+    % perform permutation test for statistical significance
+    ptest = perform_permutation_test_lfp(kernels, Xd, D, best_lambda, cfg, stim);
+
     results(ch).channel_id = lfp_data.channel_ids(ch);
     results(ch).Xd = Xd;
     results(ch).D = D;
@@ -138,6 +141,7 @@ for ch = 1:n_channels
     results(ch).lfp_actual = Xd.y;
     results(ch).metrics = metricsOut;
     results(ch).kernels = kernels;
+    results(ch).ptest = ptest;
 end
 
 % section generate summary plots
@@ -166,7 +170,7 @@ for ii = 1:n_channels
     if ~exist(kernel_outdir, 'dir')
         mkdir(kernel_outdir);
     end
-    plot_kernels(results(ch).kernels, [], kernel_outdir);
+    plot_kernels(results(ch).kernels, results(ch).ptest, kernel_outdir);
 
     % create summary kernel plot
     fig_kernels = plot_lfp_kernels_summary(results(ch).kernels, ...
