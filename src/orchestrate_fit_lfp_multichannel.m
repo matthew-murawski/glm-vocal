@@ -72,6 +72,23 @@ lfp_data = load_lfp(lfpPath);
 fprintf('Loaded %d channels, %d samples, fs=%.1f Hz\n', ...
         lfp_data.n_channels, lfp_data.n_samples, lfp_data.fs);
 
+% filter events to only include those within LFP recording duration
+lfp_end_time = lfp_data.t0 + lfp_data.duration;
+fprintf('LFP recording spans %.2f to %.2f seconds (duration: %.2f s)\n', ...
+        lfp_data.t0, lfp_end_time, lfp_data.duration);
+
+n_events_before = numel(events);
+if ~isempty(events)
+    valid_mask = [events.t_on] <= lfp_end_time;
+    events = events(valid_mask);
+    n_events_after = numel(events);
+    n_excluded = n_events_before - n_events_after;
+    if n_excluded > 0
+        fprintf('Excluded %d events (%.1f%%) that extend beyond LFP recording\n', ...
+                n_excluded, 100 * n_excluded / n_events_before);
+    end
+end
+
 % consolidate twitter bouts
 events = consolidate_twitter_bouts(events, cfg.twitter_bout_window_s);
 if ~isempty(events)
