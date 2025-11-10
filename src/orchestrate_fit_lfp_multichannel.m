@@ -188,6 +188,37 @@ for ii = 1:n_channels
     fprintf('  Kernels for channel %d saved\n', ch);
 end
 
+% section summarize significant kernels
+fprintf('\n=== SIGNIFICANCE SUMMARY ===\n');
+total_sig_kernels = 0;
+sigSessions = [];
+
+for ch = 1:n_channels
+    ptest = results(ch).ptest;
+    kernel_fields = fieldnames(ptest);
+    n_sig_kernels_ch = 0;
+
+    for i = 1:numel(kernel_fields)
+        field = kernel_fields{i};
+        if isfield(ptest.(field), 'p_value') && ptest.(field).p_value < 0.05
+            n_sig_kernels_ch = n_sig_kernels_ch + 1;
+        end
+    end
+
+    if n_sig_kernels_ch > 0
+        sigSessions = [sigSessions, ch];
+    end
+    total_sig_kernels = total_sig_kernels + n_sig_kernels_ch;
+end
+
+fprintf('Found %d significant kernels in %d sessions.\n', total_sig_kernels, numel(sigSessions));
+if ~isempty(sigSessions)
+    fprintf('Significant sessions (channel indices): ');
+    fprintf('%d ', sigSessions);
+    fprintf('\n');
+end
+fprintf('============================\n\n');
+
 % section save results
 fprintf('Saving results to %s...\n', outdir);
 artifactPath = fullfile(outdir, 'fit_results_lfp.mat');
@@ -197,6 +228,7 @@ result = struct();
 result.cfg = cfg;
 result.stim = stim;
 result.results = results;
+result.sigSessions = sigSessions;
 
 fprintf('Done! Results saved to: %s\n', artifactPath);
 
