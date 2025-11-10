@@ -102,6 +102,8 @@ if use_basis && nLags > 1
     lag_times = lagOffsets * dt;
     B = build_raised_cosine_basis(lag_times, n_basis, overlap);
 
+    B = B(:, 1:end-1);
+
     % project: Xblk = Xblk_raw * B
     Xblk = Xblk_raw * B;
 

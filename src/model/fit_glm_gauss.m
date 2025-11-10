@@ -63,6 +63,13 @@ if strcmpi(link, 'identity') && issparse(X) && lambda > 0
         A = XtX + ridge;
         b = X' * y;
 
+        % compute condition number for diagnostics
+        cond_A = condest(A);
+        if cond_A > 1e10
+            warning('fit_glm_gauss:PoorConditioning', ...
+                    'Matrix A is poorly conditioned (cond ≈ %.2e). Results may be unstable.', cond_A);
+        end
+
         % try sparse Cholesky if A is sparse
         if issparse(A)
             bestW = A \ b;
@@ -94,6 +101,7 @@ if strcmpi(link, 'identity') && issparse(X) && lambda > 0
         fitinfo.funcCount = 1;
         fitinfo.gradient = grad;
         fitinfo.method = 'closed_form';
+        fitinfo.condition_number = cond_A;
 
         return
     catch ME

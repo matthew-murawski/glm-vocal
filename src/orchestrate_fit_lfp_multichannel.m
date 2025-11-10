@@ -165,6 +165,26 @@ stim = build_timebase(events, dummy_sp, cfg.dt);
 fprintf('Binning LFP data to timebase (dt=%.3f s)...\n', cfg.dt);
 lfp_binned = bin_lfp(lfp_data, stim, cfg);
 
+% High-pass filter lfp_binned to remove slow drifts
+fs_env = 1 / cfg.dt;
+fc_highpass = 0.1;  % Hz - removes drifts with periods > 10 seconds
+[b, a] = butter(3, fc_highpass / (fs_env / 2), 'high');
+lfp_binned_filtered = filtfilt(b, a, lfp_binned);
+fprintf('Applied %.2f Hz high-pass filter to remove slow drifts (fs_env=%.2f Hz)\n', fc_highpass, fs_env);
+
+% --- Add this debug code before the parfor loop ---
+fprintf('DEBUG: Checking lfp_binned matrix...\n');
+std_per_channel = std(lfp_binned, 0, 1, 'omitnan');
+mean_per_channel = mean(lfp_binned, 1, 'omitnan');
+max_abs_val = max(abs(lfp_binned), [], 1);
+
+fprintf('Std dev of channels (min/max): %.2e / %.2e\n', min(std_per_channel), max(std_per_channel));
+fprintf('Max abs value (min/max):      %.2e / %.2e\n', min(max_abs_val), max(max_abs_val));
+
+if all(std_per_channel < 1e-10)
+    error('DATA IS DEAD: Standard deviation is zero. Stopping.');
+end
+
 streams = build_streams(events, stim, cfg);
 states = compute_states(events, stim, cfg.state);
 
@@ -182,9 +202,12 @@ end
 parfor ch = 1:n_channels
     fprintf('  Channel %d/%d (ID: %s)... ', ch, n_channels, num2str(lfp_data.channel_ids(ch)));
 
-    lfp_ch = lfp_binned(:, ch);
+    lfp_ch = lfp_binned_filtered(:, ch);
 
     Xd = assemble_design_matrix(streams, states, lfp_ch, cfg, stim);
+
+    % Standardize design matrix to improve numerical conditioning
+    [Xd, scaling_info] = standardize_design_matrix(Xd);
 
     [D, Dmap] = smoothness_penalty(Xd.colmap, cfg);
 
@@ -222,6 +245,7 @@ parfor ch = 1:n_channels
     results(ch).metrics = metricsOut;
     results(ch).kernels = kernels;
     results(ch).ptest = ptest;
+    results(ch).scaling_info = scaling_info;
 end
 
 % section generate summary plots

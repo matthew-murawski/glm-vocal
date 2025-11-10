@@ -145,7 +145,7 @@ if ~isempty(producedFieldsIncluded)
 end
 
 if ~skipBlock('states')
-    stateBlk = sparse(double([stateConvo, stateSpon]));
+    stateBlk = sparse([double(stateConvo), double(stateSpon)]);
     blockCells{end+1} = stateBlk; %#ok<AGROW>
     stateCols = colStart:(colStart + 1);
     stateMap = struct();

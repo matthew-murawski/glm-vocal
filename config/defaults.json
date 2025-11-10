@@ -15,7 +15,10 @@
   "cv": {
     "k": 5,
     "lambdas": [
-      0.1
+      0.1,
+      1.0,
+      10.0,
+      100.0
     ]
   },
   "state": {
@@ -28,7 +31,8 @@
     "max_iter": 600
   },
   "seed": 42,
-  "exclude_predictors": ["states"],
+  "exclude_predictors": ["states", "intercept"],
+  "lfp_history": true,
   "produced_split_mode": "",
   "perceived_addressed_window_s": 4.0,
   "perceived_overheard_silence_s": 5.0,
@@ -60,11 +64,6 @@
       0.1,
       0.5
     ],
-    "history_basis": {
-      "kind": "raised_cosine",
-      "n_basis": 8,
-      "overlap": 2.0
-    },
     "link": "identity",
     "channel_ids": []
   }

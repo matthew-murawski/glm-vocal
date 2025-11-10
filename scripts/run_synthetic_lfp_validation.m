@@ -48,7 +48,7 @@ fprintf('GLM FITTING\n');
 fprintf('========================================\n\n');
 
 fprintf('Fitting GLM to synthetic data...\n');
-    results = run_fit_lfp_multichannel(cfgPath, lfpFile, heardFile, producedFile, outdir, P);
+    results = orchestrate_fit_lfp_multichannel(cfgPath, lfpFile, heardFile, producedFile, outdir, P);
 
 %% Display validation summary
 fprintf('\n========================================\n');
