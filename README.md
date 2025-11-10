@@ -1,13 +1,13 @@
 # GLM Vocal
 
-Repo for fitting a generalized linear model (GLM) to natural marmoset conversation data. The pipeline ingests spike times alongside produced and perceived vocalizations, rasterizes them onto a common grid, constructs lagged design matrices, and fits a Poisson GLM with smoothness penalties to recover stimulus kernels, spike-history effects, and conversational context weights.
+Repo for fitting a generalized linear model (GLM) to natural marmoset conversation data. The pipeline ingests spike times alongside produced and perceived vocalizations, rasterizes them onto a common grid, constructs lagged/basis-projected design matrices, and fits a Poisson GLM with smoothness penalties to recover stimulus kernels, spike-history effects, and conversational context weights.
 
 ## What
-- End-to-end MATLAB pipeline (`scripts/run_fit_single_neuron.m`) that loads spikes + labels, builds regressors, fits the GLM, and saves metrics, plots, and artifacts.
+- End-to-end MATLAB pipeline (`scripts/run_fit_single_neuron.m`) that loads spikes + labels, builds regressors, fits the GLM, runs blocked CV, and saves metrics, plots, and artifacts.
 - Preprocessing utilities for timebase construction, spike binning, conversational state detection, and regressor stream generation.
-- Feature builders that assemble sparse design matrices with causal/symmetric kernels and smoothness penalties.
+- Feature builders that assemble sparse design matrices with causal/symmetric kernels and optional raised-cosine basis projection, plus smoothness penalties.
 - Model routines for penalized MAP fitting, blocked cross-validation, rate prediction, and parameter unpacking.
-- Evaluation helpers and plotting scripts for quick QC (kernels, rate vs. spikes, CV curves, PSTHs, design matrix snapshots).
+- Evaluation helpers and plotting scripts for quick QC (kernels with CIs, rate vs. spikes, CV curves, PSTHs, design matrix snapshots).
 - Unit and end-to-end tests runnable from MATLAB (or via the provided shell wrapper) to keep the stack stable.
 
 ## Layout
@@ -23,11 +23,11 @@ glm-vocal/
 └─ results/                      # example fit artifacts (outputs land here by default)
 ```
 
-See `docs/SPEC.md` for the formal MVP requirements and `docs/BLUEPRINT.md` for the phased implementation plan.
+See `docs/SPEC.md` for the up-to-date specification and `docs/BLUEPRINT.md` for the phased implementation plan.
 
 ## Requirements
 - MATLAB R2021b or newer (tested with recent desktop MATLAB builds).
-- Optimization Toolbox (the code relies on `fminunc`).
+- Optimization Toolbox (uses `fminunc`; a slower fallback exists if missing).
 - macOS paths are assumed in a few helper scripts; adjust to suit your environment if needed.
 
 ## Quick Start
@@ -57,13 +57,18 @@ Arguments after the spike file are optional; pass `[]` to fall back to defaults.
 ### Input expectations
 - **Spikes (`load_spikes`)**: MAT file containing `spike_times` (double vector, seconds), `neuron_id`, and `session_id`.
 - **Labels (`load_labels`)**: Either MAT struct arrays with fields `kind`, `onset`, `offset`, `label` or Audacity TXT exports (`start\tstop\toptional_label`). `kind` must be `produced` or `perceived`.
-- **Config (`config/defaults.json`)**: Controls bin size (`dt`), kernel windows, cross-validation grid, state rules, optimizer tolerances, and RNG seed.
+- **Config (`config/defaults.json`)**: Controls bin size (`dt`), kernel windows, cross‑validation grid, state rules, optimizer tolerances, RNG seed, produced split mode, optional twitter‑bout consolidation, and basis settings for design blocks.
 
 ## Outputs
 `run_fit_single_neuron` writes a timestamped subdirectory (default `results/`) containing:
 - `fit_results.mat` with the configuration, preprocessed streams, design matrix, smoothness operators, selected λ, fitted weights, metrics, and QC summary.
-- Plots: design matrix preview, kernel traces, firing-rate vs spikes, CV curve, PSTHs (stored under `results/<run>/plots/`).
+- Plots: design matrix preview, kernel traces (with permutation‑test CIs), firing‑rate vs spikes, CV curve, PSTHs (stored under `results/<run>/plots/`).
 - JSON/text summary files from `qc_session_summary` describing the fit quality and artifact locations.
+
+Notes on produced/heard handling and kernels:
+- Produced calls can be split by conversational context or by call type via `cfg.produced_split_mode` (`"context"` or `"call_type"`). In both cases, a `produced_any` aggregate is also provided.
+- Heard calls are split into `heard_addressed` and `heard_overheard` according to proximity rules; an aggregate `heard_any` is also available.
+- Optionally consolidate rapid twitter syllables into bouts via `cfg.twitter_bout_window_s`.
 
 ## Testing
 Run the full MATLAB test suite (unit + e2e) from the repo root:
@@ -73,10 +78,33 @@ Run the full MATLAB test suite (unit + e2e) from the repo root:
 This wrapper adds `src/` and `tests/` to the MATLAB path and executes all suites with `runtests`.
 
 ## Notes
-- The pipeline is organized to encourage sparse operations and deterministic workflows; see `docs/BLUEPRINT.md` for phased milestones.
+- The pipeline favors sparse ops and deterministic workflows; see `docs/BLUEPRINT.md` for phased milestones.
+- Kernels use lagged copies with optional raised‑cosine basis projection; penalties apply as second differences over basis coefficients.
 - All MATLAB functions follow the comment style described in the agent instructions (section headings, informal tone).
 - Additional helper scripts (`scripts/export_state_labels_to_audacity.m`, `scripts/demo_s178.m`) show how to adapt the main entry point to different datasets or export formats.
 
 ## Further Reading
 - **Detailed specification**: `docs/SPEC.md`
 - **Implementation plan**: `docs/BLUEPRINT.md`
+
+## Config highlights
+Key defaults from `config/defaults.json` (edit to suit your data):
+
+```
+{
+  "dt": 0.1,
+  "heard_window_s": [0.0, 2.0],
+  "produced_window_s": [-2.0, 3.0],
+  "history_window_s": [0.1, 0.5],
+  "cv": { "k": 5, "lambdas": [0.1, 0.3, 1, 3, 10, 30, 100, 200] },
+  "state": { "response_window_s": 5.0, "max_seq_gap_s": 5.0 },
+  "optimizer": { "tol_fun": 1e-6, "tol_grad": 1e-5, "max_iter": 600 },
+  "exclude_predictors": [],
+  "produced_split_mode": "context",          // or "call_type"
+  "perceived_addressed_window_s": 4.0,
+  "perceived_overheard_silence_s": 5.0,
+  "twitter_bout_window_s": 1.5,
+  "heard_basis":   { "kind": "raised_cosine", "n_basis": 8, "overlap": 2.0, "normalize": "l1" },
+  "produced_basis":{ "kind": "raised_cosine", "n_basis": 8, "overlap": 2.0, "normalize": "l1" }
+}
+```
