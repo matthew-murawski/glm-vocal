@@ -1,0 +1,17 @@
+%% [script_file_name]
+% [one-line description of the script]
+
+clr; clc;
+
+%% User Parameters
+[Parameter = parameter;]
+[OtherParameter = 3;]
+
+[ListOfParameters = {'Param1', 'Param2', 'Param3'};]
+
+%% Execute Analysis
+[fprintf(['Starting whatever for %s | session %d]);]
+
+[the actual runner script being called]
+
+[fprintf('Whatever has been generated or whatever. Done.\n');]
