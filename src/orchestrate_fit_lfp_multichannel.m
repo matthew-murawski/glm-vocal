@@ -124,15 +124,6 @@ if ~isempty(events)
         fprintf('  Perceived (heard): %d (%.1f%%)\n', n_heard, 100 * n_heard / n_events_after);
         fprintf('  Produced: %d (%.1f%%)\n', n_produced, 100 * n_produced / n_events_after);
 
-        % Count by label (call types)
-        labels = {events.label};
-        unique_labels = unique(labels);
-        fprintf('Call types (%d unique):\n', numel(unique_labels));
-        for i = 1:numel(unique_labels)
-            lbl = unique_labels{i};
-            n_lbl = sum(strcmp(labels, lbl));
-            fprintf('  "%s": %d (%.1f%%)\n', char(lbl), n_lbl, 100 * n_lbl / n_events_after);
-        end
         fprintf('===================================\n\n');
     end
 end
