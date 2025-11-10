@@ -74,11 +74,35 @@ fprintf('Loaded %d channels, %d samples, fs=%.1f Hz\n', ...
 
 % filter events to only include those within LFP recording duration
 lfp_end_time = lfp_data.t0 + lfp_data.duration;
+fprintf('\n=== TIME ALIGNMENT DIAGNOSTICS ===\n');
 fprintf('LFP recording spans %.2f to %.2f seconds (duration: %.2f s)\n', ...
         lfp_data.t0, lfp_end_time, lfp_data.duration);
 
 n_events_before = numel(events);
 if ~isempty(events)
+    event_t_ons = [events.t_on];
+    event_t_offs = [events.t_off];
+
+    fprintf('Label time range: %.2f to %.2f seconds (span: %.2f s)\n', ...
+            min(event_t_ons), max(event_t_offs), max(event_t_offs) - min(event_t_ons));
+    fprintf('Total events before filtering: %d\n', n_events_before);
+
+    % Count events in different categories
+    n_before_lfp = sum(event_t_offs < lfp_data.t0);
+    n_after_lfp = sum(event_t_ons > lfp_end_time);
+    n_within_lfp = sum(event_t_ons >= lfp_data.t0 & event_t_offs <= lfp_end_time);
+    n_overlap = n_events_before - n_before_lfp - n_after_lfp - n_within_lfp;
+
+    fprintf('Events before LFP start (t_off < %.2f): %d (%.1f%%)\n', ...
+            lfp_data.t0, n_before_lfp, 100 * n_before_lfp / n_events_before);
+    fprintf('Events after LFP end (t_on > %.2f): %d (%.1f%%)\n', ...
+            lfp_end_time, n_after_lfp, 100 * n_after_lfp / n_events_before);
+    fprintf('Events fully within LFP: %d (%.1f%%)\n', ...
+            n_within_lfp, 100 * n_within_lfp / n_events_before);
+    fprintf('Events partially overlapping: %d (%.1f%%)\n', ...
+            n_overlap, 100 * n_overlap / n_events_before);
+    fprintf('==================================\n\n');
+
     valid_mask = [events.t_on] <= lfp_end_time;
     events = events(valid_mask);
     n_events_after = numel(events);
@@ -86,6 +110,30 @@ if ~isempty(events)
     if n_excluded > 0
         fprintf('Excluded %d events (%.1f%%) that extend beyond LFP recording\n', ...
                 n_excluded, 100 * n_excluded / n_events_before);
+    end
+
+    % Analyze composition of remaining events
+    if n_events_after > 0
+        fprintf('\n=== REMAINING EVENT COMPOSITION ===\n');
+
+        % Count by kind (heard vs produced)
+        kindCells = cellfun(@char, {events.kind}, 'UniformOutput', false);
+        n_heard = sum(strcmp(kindCells, 'perceived'));
+        n_produced = sum(strcmp(kindCells, 'produced'));
+        fprintf('Event types:\n');
+        fprintf('  Perceived (heard): %d (%.1f%%)\n', n_heard, 100 * n_heard / n_events_after);
+        fprintf('  Produced: %d (%.1f%%)\n', n_produced, 100 * n_produced / n_events_after);
+
+        % Count by label (call types)
+        labels = {events.label};
+        unique_labels = unique(labels);
+        fprintf('Call types (%d unique):\n', numel(unique_labels));
+        for i = 1:numel(unique_labels)
+            lbl = unique_labels{i};
+            n_lbl = sum(strcmp(labels, lbl));
+            fprintf('  "%s": %d (%.1f%%)\n', char(lbl), n_lbl, 100 * n_lbl / n_events_after);
+        end
+        fprintf('===================================\n\n');
     end
 end
 
