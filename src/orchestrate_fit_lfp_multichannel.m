@@ -227,12 +227,8 @@ fprintf('Generating kernel plots...\n');
 for ii = 1:n_channels
     ch = ii;
 
-    % create detailed kernel plots in subdirectory
-    kernel_outdir = fullfile(plotDir, sprintf('channel_%d', ch));
-    if ~exist(kernel_outdir, 'dir')
-        mkdir(kernel_outdir);
-    end
-    plot_kernels(results(ch).kernels, results(ch).ptest, kernel_outdir);
+    % write kernel plots into the main plot directory with per-channel filenames
+    plot_kernels(results(ch).kernels, results(ch).ptest, plotDir, sprintf('kernels_ch%d.pdf', ch));
 
     % create summary kernel plot
     fig_kernels = plot_lfp_kernels_summary(results(ch).kernels, ...

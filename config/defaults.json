@@ -28,7 +28,7 @@
     "max_iter": 600
   },
   "seed": 42,
-  "exclude_predictors": ["state"],
+  "exclude_predictors": ["states"],
   "produced_split_mode": "",
   "perceived_addressed_window_s": 4.0,
   "perceived_overheard_silence_s": 5.0,

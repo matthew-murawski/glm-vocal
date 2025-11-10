@@ -1,4 +1,4 @@
-function plot_kernels(kernels, ptest, outdir)
+function plot_kernels(kernels, ptest, outdir, outfile)
 % section setup
 % render kernel weight traces and scalar summaries to disk for quick qc.
 if nargin < 2
@@ -17,6 +17,22 @@ if nargin == 3 && (ischar(outdir) || isstring(outdir))
 end
 if ~exist(outdir, 'dir')
     mkdir(outdir);
+end
+
+% choose output filename; default keeps backward compatibility.
+if nargin < 4 || isempty(outfile)
+    outfile = 'kernels.pdf';
+else
+    if isstring(outfile) || ischar(outfile)
+        outfile = char(outfile);
+    else
+        error('plot_kernels:InvalidOutfile', 'outfile must be a char or string.');
+    end
+    % ensure a pdf suffix for consistency
+    [~, ~, ext] = fileparts(outfile);
+    if isempty(ext)
+        outfile = [outfile, '.pdf']; %#ok<AGROW>
+    end
 end
 
 fields = fieldnames(kernels);
@@ -117,7 +133,7 @@ try
         end
         set(ax, 'PlotBoxAspectRatio', [1 1 1]);
     end
-    filepath = fullfile(outdir, 'kernels.pdf');
+    filepath = fullfile(outdir, outfile);
     exportgraphics(fig, filepath, 'ContentType', 'vector');
 catch err
     close(fig);
