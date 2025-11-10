@@ -1,21 +1,6 @@
-function results = run_fit_lfp_multichannel(cfgPath, lfpPath, heardPath, producedPath, outdir)
-%RUN_FIT_LFP_MULTICHANNEL Fit GLM to multiple LFP channels.
-%   results = RUN_FIT_LFP_MULTICHANNEL(cfgPath, lfpPath, heardPath, producedPath, outdir)
-%   fits a Gaussian GLM to each LFP channel independently, using the same
-%   regressors (heard/produced stimuli, conversational states) as the spike model.
-%
-%   Inputs:
-%     cfgPath      - path to config JSON file (or struct)
-%     lfpPath      - path to LFP MAT file
-%     heardPath    - path to heard event labels (optional)
-%     producedPath - path to produced event labels (optional)
-%     outdir       - output directory for results (optional)
-%
-%   Returns:
-%     results - array of structs (one per channel) with fitted models
+function results = run_fit_lfp_multichannel(cfgPath, lfpPath, heardPath, producedPath, outdir, P)
 
 % section setup
-% coordinate the full multi-channel LFP GLM fitting pipeline and persist results.
 if nargin < 1
     cfgPath = [];
 end
@@ -32,32 +17,46 @@ if nargin < 5
     outdir = [];
 end
 
-[rootDir, srcPath] = resolve_paths();
+rootDir = fullfile(P.github_path, 'glm-vocal');
+srcPath = fullfile(P.github_path, 'glm-vocal/src');
+
 addpath(srcPath);
 
 % load configuration
 if isstruct(cfgPath)
     cfg = cfgPath;
+elseif ~isempty(cfgPath)
+    cfg = jsondecode(fileread(cfgPath));
 else
-    cfgFile = resolve_file(cfgPath, fullfile(rootDir, 'config', 'defaults.json'));
+    cfgFile = fullfile(rootDir, 'config', 'defaults.json');
     cfg = jsondecode(fileread(cfgFile));
 end
 
 % set response type to LFP
 cfg.response_type = 'lfp';
 
-% resolve file paths
-lfpFile = resolve_file(lfpPath);
-heardFile = resolve_file(heardPath, '', true);
-producedFile = resolve_file(producedPath, '', true);
+% load event labels
+heardEvents = repmat(empty_event_record(), 0, 1);
+producedEvents = heardEvents;
+if ~isempty(heardPath) && isfile(heardPath)
+    heardEvents = load_labels(heardPath, 'perceived');
+end
+if ~isempty(producedPath) && isfile(producedPath)
+    producedEvents = load_labels(producedPath, 'produced');
+end
+events = [heardEvents; producedEvents];
 
 % create output directory
 if isempty(outdir)
     outdir = fullfile(rootDir, 'results_lfp');
 end
-ensure_dir(outdir);
+if ~exist(outdir, 'dir')
+    mkdir(outdir);
+end
 plotDir = fullfile(outdir, 'plots');
-ensure_dir(plotDir);
+if ~exist(plotDir, 'dir')
+    mkdir(plotDir);
+end
 
 % configure predictor exclusions
 if ~isfield(cfg, 'exclude_predictors') || isempty(cfg.exclude_predictors)
@@ -68,21 +67,10 @@ cfg.produced_split_mode = sanitize_produced_split_mode(cfg);
 cfg.twitter_bout_window_s = sanitize_twitter_window(cfg);
 
 % section load data
-fprintf('Loading LFP data from %s...\n', lfpFile);
-lfp_data = load_lfp(lfpFile);
+fprintf('Loading LFP data from %s...\n', lfpPath);
+lfp_data = load_lfp(lfpPath);
 fprintf('Loaded %d channels, %d samples, fs=%.1f Hz\n', ...
         lfp_data.n_channels, lfp_data.n_samples, lfp_data.fs);
-
-% load event labels
-heardEvents = repmat(empty_event_record(), 0, 1);
-producedEvents = heardEvents;
-if ~isempty(heardFile)
-    heardEvents = load_labels(heardFile, 'perceived');
-end
-if ~isempty(producedFile)
-    producedEvents = load_labels(producedFile, 'produced');
-end
-events = [heardEvents; producedEvents];
 
 % consolidate twitter bouts
 events = consolidate_twitter_bouts(events, cfg.twitter_bout_window_s);
@@ -97,15 +85,12 @@ end
 
 % section build shared preprocessing structures
 fprintf('Building timebase and streams...\n');
-% create a dummy spike struct for build_timebase
 dummy_sp = struct('spike_times', [], 'neuron_id', 'LFP', 'session_id', 'LFP');
 stim = build_timebase(events, dummy_sp, cfg.dt);
 
-% bin LFP data to timebase
 fprintf('Binning LFP data to timebase (dt=%.3f s)...\n', cfg.dt);
 lfp_binned = bin_lfp(lfp_data, stim, cfg);
 
-% build streams and states (same as spike pipeline)
 streams = build_streams(events, stim, cfg);
 states = compute_states(events, stim, cfg.state);
 
@@ -119,37 +104,28 @@ for ch = 1:n_channels
 
     lfp_ch = lfp_binned(:, ch);
 
-    % assemble design matrix with LFP history
     Xd = assemble_design_matrix(streams, states, lfp_ch, cfg, stim);
 
-    % build smoothness penalty matrix
     [D, Dmap] = smoothness_penalty(Xd.colmap, cfg);
 
-    % get link function from config
     if isfield(cfg, 'lfp') && isfield(cfg.lfp, 'link')
         link = cfg.lfp.link;
     else
         link = 'identity';
     end
 
-    % cross-validate lambda
     fitfun = @(XdTrain, Dtrain, lambda) fit_glm_gauss(XdTrain, Dtrain, lambda, cfg.optimizer, link);
     [best_lambda, cvinfo] = crossval_blocked(fitfun, Xd, D, cfg.cv);
 
-    % fit final model with best lambda
     [wmap, fitinfo] = fit_glm_gauss(Xd, D, best_lambda, cfg.optimizer, link);
 
-    % predict LFP
     lfp_pred = predict_lfp(Xd.X, wmap.w, link);
 
-    % compute metrics
     metricsOut = metrics_lfp(Xd.y, lfp_pred);
     fprintf('R²=%.3f, Corr=%.3f\n', metricsOut.r2, metricsOut.correlation);
 
-    % unpack kernels
     kernels = unpack_params(wmap, Xd.colmap, cfg, stim);
 
-    % store results
     results(ch).channel_id = lfp_data.channel_ids(ch);
     results(ch).Xd = Xd;
     results(ch).D = D;
@@ -167,12 +143,10 @@ end
 % section generate summary plots
 fprintf('Generating summary plots...\n');
 
-% plot R² across channels
 fig_r2 = plot_lfp_r2_by_channel(results);
 saveas(fig_r2, fullfile(plotDir, 'lfp_r2_by_channel.pdf'));
 close(fig_r2);
 
-% plot traces for a few representative channels
 channels_to_plot = min(4, n_channels);
 for ii = 1:channels_to_plot
     ch = ii;
@@ -182,12 +156,33 @@ for ii = 1:channels_to_plot
     close(fig_trace);
 end
 
+% plot fitted kernels for each channel
+fprintf('Generating kernel plots...\n');
+for ii = 1:n_channels
+    ch = ii;
+
+    % create detailed kernel plots in subdirectory
+    kernel_outdir = fullfile(plotDir, sprintf('channel_%d', ch));
+    if ~exist(kernel_outdir, 'dir')
+        mkdir(kernel_outdir);
+    end
+    plot_kernels(results(ch).kernels, [], kernel_outdir);
+
+    % create summary kernel plot
+    fig_kernels = plot_lfp_kernels_summary(results(ch).kernels, ...
+                                           results(ch).channel_id, ...
+                                           results(ch).metrics);
+    saveas(fig_kernels, fullfile(plotDir, sprintf('lfp_kernels_summary_ch%d.pdf', ch)));
+    close(fig_kernels);
+
+    fprintf('  Kernels for channel %d saved\n', ch);
+end
+
 % section save results
 fprintf('Saving results to %s...\n', outdir);
 artifactPath = fullfile(outdir, 'fit_results_lfp.mat');
 save(artifactPath, 'cfg', 'lfp_data', 'events', 'stim', 'lfp_binned', 'streams', 'states', 'results', '-v7.3');
 
-% return consolidated results
 result = struct();
 result.cfg = cfg;
 result.stim = stim;
@@ -195,4 +190,34 @@ result.results = results;
 
 fprintf('Done! Results saved to: %s\n', artifactPath);
 
+end
+
+function mode = sanitize_produced_split_mode(cfg)
+if ~isstruct(cfg) || ~isfield(cfg, 'produced_split_mode') || isempty(cfg.produced_split_mode)
+    mode = 'context';
+    return;
+end
+raw = string(cfg.produced_split_mode);
+if numel(raw) ~= 1
+    error('run_fit_single_neuron:InvalidSplitMode', 'produced_split_mode must be a scalar string.');
+end
+mode = lower(strtrim(raw));
+if ~(mode == "context" || mode == "call_type")
+    error('run_fit_single_neuron:InvalidSplitMode', 'produced_split_mode must be ''context'' or ''call_type''.');
+end
+mode = char(mode);
+end
+
+function window = sanitize_twitter_window(cfg)
+defaultWindow = 1.5;
+if ~isstruct(cfg) || ~isfield(cfg, 'twitter_bout_window_s') || isempty(cfg.twitter_bout_window_s)
+    window = defaultWindow;
+    return
+end
+
+raw = double(cfg.twitter_bout_window_s);
+if ~isscalar(raw) || ~isfinite(raw) || raw <= 0
+    error('run_fit_single_neuron:InvalidTwitterWindow', 'twitter_bout_window_s must be a positive finite scalar.');
+end
+window = raw;
 end

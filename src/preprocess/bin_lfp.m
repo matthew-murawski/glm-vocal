@@ -68,6 +68,45 @@ else
     lfp_filtered = lfp.data;
 end
 
+% extract band power if requested
+if isfield(cfg, 'lfp') && isfield(cfg.lfp, 'extract_band_power') && cfg.lfp.extract_band_power
+    fprintf('  Extracting band power via Hilbert transform...\n');
+
+    % get smoothing window if specified
+    if isfield(cfg.lfp, 'power_smoothing_ms') && ~isempty(cfg.lfp.power_smoothing_ms)
+        smoothing_ms = cfg.lfp.power_smoothing_ms;
+    else
+        smoothing_ms = 0;  % no smoothing
+    end
+
+    % extract power for each channel
+    lfp_power = zeros(size(lfp_filtered));
+    for ch = 1:lfp.n_channels
+        % apply Hilbert transform to get analytic signal
+        analytic_signal = hilbert(lfp_filtered(:, ch));
+
+        % extract amplitude envelope (instantaneous amplitude)
+        envelope = abs(analytic_signal);
+
+        % optional smoothing of the envelope
+        if smoothing_ms > 0
+            % convert smoothing window from ms to samples
+            smoothing_samples = round(smoothing_ms * lfp.fs / 1000);
+
+            % use moving average filter for smoothing
+            if smoothing_samples > 1
+                smooth_kernel = ones(smoothing_samples, 1) / smoothing_samples;
+                envelope = filtfilt(smooth_kernel, 1, envelope);
+            end
+        end
+
+        lfp_power(:, ch) = envelope;
+    end
+
+    % use power envelope for subsequent processing
+    lfp_filtered = lfp_power;
+end
+
 % resample to stimulus grid using interpolation
 n_bins = numel(stim.t);
 lfp_binned = zeros(n_bins, lfp.n_channels);

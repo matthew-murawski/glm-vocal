@@ -30,3 +30,4 @@ logs/
 results/
 .DS_Store
 *.asv
+/results_synthetic

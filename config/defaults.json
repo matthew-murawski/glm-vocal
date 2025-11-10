@@ -1,5 +1,5 @@
 {
-  "dt": 0.2,
+  "dt": 0.1,
   "heard_window_s": [
     0.0,
     2
@@ -50,12 +50,14 @@
     "data_file": "",
     "fs_original": 1000,
     "bandpass_hz": [
-      1,
-      100
+      70,
+      150
     ],
+    "extract_band_power": true,
+    "power_smoothing_ms": 50,
     "normalize": "zscore",
     "history_window_s": [
-      0.01,
+      0.1,
       0.5
     ],
     "history_basis": {

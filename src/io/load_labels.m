@@ -223,11 +223,6 @@ else
 end
 end
 
-function rec = empty_event_record()
-% provide a consistent empty record template
-rec = struct('kind', '', 't_on', 0, 't_off', 0, 'label', "");
-end
-
 function pathOut = ensure_char_path(pathIn)
 % coerce supported string types into a char vector
 if isstring(pathIn)
