@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# always start at repo root
-cd "$(git rev-parse --show-toplevel)"
+# always compute repo root and pass absolute paths to matlab
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-matlab -batch "addpath(genpath('src')); addpath(genpath('tests')); results = runtests('tests', IncludeSubfolders=true); disp(results);"
+/Applications/MATLAB_R2025b.app/bin/matlab -batch "reporoot='${REPO_ROOT}'; try, cd(reporoot); catch, end; addpath(genpath(fullfile(reporoot,'src'))); addpath(genpath(fullfile(reporoot,'tests'))); import matlab.unittest.TestSuite; import matlab.unittest.TestRunner; suite = TestSuite.fromFolder(fullfile(reporoot,'tests'),'IncludingSubfolders',true); if isempty(suite), disp('No tests discovered.'); error('NoTestsFound'); end; runner = TestRunner.withTextOutput('Verbosity',3); results = runner.run(suite); disp(results); if any([results.Failed]), error('TestsFailed'); end;"
