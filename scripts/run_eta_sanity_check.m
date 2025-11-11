@@ -9,7 +9,7 @@ sessionNumber = 177;
 
 dataPath = fullfile(P.repo_root, 'output/glm/M93A_S177_HG_for_GLM.mat');
 etaWindow_s = [-2.0, 2.0];
-target_dt = 0.01;
+target_dt = 0.1;
 
 ChanGeo = [ 3,  7, 11, 15, 17, 21, 25, 29; 
             1,  5,  9, 13, 19, 23, 27, 31; 

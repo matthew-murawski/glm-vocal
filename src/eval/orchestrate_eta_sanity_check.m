@@ -28,8 +28,48 @@ ensure_parallel_pool();
 events = load_session_events(dataPath, animalID, sessionNumber);
 eventKinds = cellfun(@char, {events.kind}, 'UniformOutput', false);
 
-% define event types to process
-eventTypes = {'produced', 'perceived'};
+% build onsets for produced and perceived, then split perceived into addressed/overheard
+producedOnsets = [];
+perceivedOnsets = [];
+if ~isempty(events)
+    if any(strcmpi(eventKinds, 'produced'))
+        producedOnsets = [events(strcmpi(eventKinds, 'produced')).t_on];
+    end
+    if any(strcmpi(eventKinds, 'perceived'))
+        perceivedOnsets = [events(strcmpi(eventKinds, 'perceived')).t_on];
+    end
+end
+producedOnsets = producedOnsets(:);
+perceivedOnsets = perceivedOnsets(:);
+
+addressWindow_s = 5.0;
+addressedOnsets = [];
+overheardOnsets = [];
+if isempty(perceivedOnsets)
+    addressedOnsets = [];
+    overheardOnsets = [];
+elseif isempty(producedOnsets)
+    addressedOnsets = [];
+    overheardOnsets = perceivedOnsets;
+else
+    % classify each perceived onset by proximity to a future produced onset
+    Np = numel(perceivedOnsets);
+    isAddressed = false(Np,1);
+    for ii = 1:Np
+        t = perceivedOnsets(ii);
+        dt = producedOnsets - t;
+        dtFuture = dt(dt >= 0);
+        if ~isempty(dtFuture) && min(dtFuture) <= addressWindow_s
+            isAddressed(ii) = true;
+        end
+    end
+    addressedOnsets = perceivedOnsets(isAddressed);
+    overheardOnsets = perceivedOnsets(~isAddressed);
+end
+
+% define event types to process and provide onset lookup
+eventTypes = {'produced', 'addressed', 'overheard'};
+onsetsByType = struct('produced', producedOnsets, 'addressed', addressedOnsets, 'overheard', overheardOnsets);
 
 %% section: iterate event types and build figures
 % for each event type, create a figure with a grid of subplots matching the channel geometry.
@@ -37,14 +77,10 @@ for eIdx = 1:numel(eventTypes)
     eventType = eventTypes{eIdx};
 
     % collect onsets for the current event type
-    thisMask = strcmpi(eventKinds, eventType);
-    theseEvents = events(thisMask);
-    if isempty(theseEvents)
-        event_onsets_list = [];
+    if isfield(onsetsByType, eventType)
+        event_onsets_list = onsetsByType.(eventType);
     else
-        % reshape into a column without relying on the (:)
-        event_onsets_list = [theseEvents.t_on];
-        event_onsets_list = event_onsets_list(:);
+        event_onsets_list = [];
     end
 
     % create figure and set a descriptive name
