@@ -67,9 +67,42 @@ else
     overheardOnsets = perceivedOnsets(~isAddressed);
 end
 
+% construct control (null) onsets with the same count as produced onsets
+controlOnsets = [];
+if ~isempty(producedOnsets)
+    baseTimeVec = [];
+    if ~isempty(simpleTimeVec)
+        baseTimeVec = simpleTimeVec;
+    else
+        % load one channel to obtain time vector
+        firstValid = ChanGeo(find(isfinite(ChanGeo) & ChanGeo > 0, 1));
+        if ~isempty(firstValid)
+            try
+                tmpHg = load_high_gamma(hgPath, 'channel_id', firstValid);
+            catch
+                tmpHg = try_load_hg_simple(hgPath, firstValid, target_dt);
+            end
+            if ~isempty(tmpHg)
+                baseTimeVec = tmpHg.t;
+            end
+        end
+    end
+    if ~isempty(baseTimeVec)
+        w1 = etaWindow_s(1);
+        w2 = etaWindow_s(2);
+        lo = baseTimeVec(1) - w1; % ensure t_onset + w1 >= t(1)
+        hi = baseTimeVec(end) - w2; % ensure t_onset + w2 <= t(end)
+        if isfinite(lo) && isfinite(hi) && hi > lo
+            N = numel(producedOnsets);
+            rng('shuffle');
+            controlOnsets = lo + (hi - lo) * rand(N, 1);
+        end
+    end
+end
+
 % define event types to process and provide onset lookup
-eventTypes = {'produced', 'addressed', 'overheard'};
-onsetsByType = struct('produced', producedOnsets, 'addressed', addressedOnsets, 'overheard', overheardOnsets);
+eventTypes = {'produced', 'addressed', 'overheard', 'null'};
+onsetsByType = struct('produced', producedOnsets, 'addressed', addressedOnsets, 'overheard', overheardOnsets, 'null', controlOnsets);
 
 %% section: iterate event types and build figures
 % for each event type, create a figure with a grid of subplots matching the channel geometry.
@@ -84,7 +117,12 @@ for eIdx = 1:numel(eventTypes)
     end
 
     % create figure and set a descriptive name
-    figTitle = sprintf('ETA - %s Calls', capitalize_first(eventType));
+    % friendly title mapping for the figure
+    if strcmpi(eventType, 'null')
+        figTitle = 'ETA - Null Control';
+    else
+        figTitle = sprintf('ETA - %s Calls', capitalize_first(eventType));
+    end
     f = figure('Name', figTitle); %#ok<NASGU>
 
     % prebuild index maps for valid channels
@@ -158,7 +196,12 @@ for eIdx = 1:numel(eventTypes)
     end
 
     % add a main title spanning the figure
-    sgtitle(sprintf('High-Gamma ETA (%s) | %s | Session %d', capitalize_first(eventType), animalID, sessionNumber));
+    if strcmpi(eventType, 'null')
+        mainTitle = sprintf('High-Gamma ETA (Null Control) | %s | Session %d', animalID, sessionNumber);
+    else
+        mainTitle = sprintf('High-Gamma ETA (%s) | %s | Session %d', capitalize_first(eventType), animalID, sessionNumber);
+    end
+    sgtitle(mainTitle);
 end
 
 end
